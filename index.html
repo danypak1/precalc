@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Precalculus</title>
+  <meta name="description" content="<!--gen:metaDescription-->Seven modules of precalculus notes, 154 exam-style questions with mark schemes and about 70 multi-part problems worked line by line — algebra review, equations, functions, polynomials, logarithms and trigonometry.<!--/gen-->">
+  <link rel="stylesheet" href="styles.css?v=41">
+  <!--gen:themeCss--><!--/gen-->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'><!--gen:icon-->ƒ<!--/gen--></text></svg>">
+  <!-- Honour the theme the student picked inside the app. In <head> and inline so
+       the page never paints the wrong theme first. -->
+  <script>
+    /* This page used to be landing.html and the app used to be index.html; they
+       swapped when the price moved to the front door. Anything still holding an
+       old link — a bookmark, a message, an unlock link — arrives here with the
+       app's hash, so hand it straight on rather than showing a sales page to
+       someone who was trying to open a chapter. */
+    if (/^#\/./.test(location.hash)) {
+      location.replace("course.html" + location.hash);
+    }
+    try {
+      var CID = "precalc"; /*gen:courseId*/
+      var t = localStorage.getItem(CID + "-theme");
+      if (t && t !== "system") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) { /* private mode — fall back to the OS preference */ }
+  </script>
+  <style>
+    /* Landing-only layout. It reuses the app's tokens, so it follows the same
+       light/dark theme, but it has no sidebar and no app chrome. */
+    body { background: var(--bg); }
+    .lp { max-width: 900px; margin: 0 auto; padding: 28px clamp(20px, 5vw, 40px) 80px; }
+    .lp-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 56px; }
+    .lp-nav strong { font-size: 15px; }
+    .lp-nav .lp-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+    .hero h1 {
+      font-size: clamp(30px, 5.5vw, 46px);
+      line-height: 1.12;
+      letter-spacing: -0.025em;
+      margin: 0 0 16px;
+      max-width: 17ch;
+    }
+    .hero p.lede {
+      font-size: clamp(16px, 2vw, 19px);
+      line-height: 1.55;
+      color: var(--ink-soft);
+      max-width: 56ch;
+      margin: 0 0 28px;
+    }
+    .hero .row-gap { margin-top: 0; align-items: center; }
+    .btn.big { padding: 14px 26px; font-size: 15px; }
+    .facts { display: flex; flex-wrap: wrap; gap: 28px; margin: 44px 0 64px; }
+    .fact strong { display: block; font-size: 26px; letter-spacing: -0.02em; }
+    .fact span { font-size: 13px; color: var(--ink-faint); }
+    .lp h2 { font-size: 22px; letter-spacing: -0.01em; margin: 0 0 18px; }
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .feature {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .feature h3 { margin: 0 0 6px; font-size: 15.5px; }
+    .feature p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink-soft); }
+    .demo {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 20px 0 64px;
+    }
+    .demo .demo-q { font-weight: 600; font-size: 15.5px; margin: 0 0 14px; }
+    .demo .demo-opt {
+      border: 1.5px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 14.5px;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 12px;
+    }
+    .demo .demo-opt .l { font-weight: 700; color: var(--ink-faint); font-size: 13px; }
+    .demo .demo-opt.picked { border-color: var(--red); background: var(--red-soft); }
+    .demo .demo-opt.right { border-color: var(--green); background: var(--green-soft); }
+    .demo .demo-fb {
+      background: var(--red-soft);
+      border: 1px solid var(--red-line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.55;
+      margin-top: 14px;
+    }
+    .demo .demo-fb .v { font-weight: 700; color: var(--red); display: block; margin-bottom: 6px; }
+    .module-list { columns: 2; column-gap: 32px; font-size: 14.5px; line-height: 2; margin: 0 0 64px; padding: 0; list-style: none; }
+    .module-list li { break-inside: avoid; color: var(--ink-soft); }
+    .module-list .n { color: var(--ink-faint); font-size: 12px; font-weight: 600; margin-right: 8px; }
+    .cta {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-line);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+    }
+    .cta h2 { margin-bottom: 8px; }
+    .cta p { color: var(--ink-soft); margin: 0 auto 20px; max-width: 46ch; font-size: 15px; }
+    /* Pricing. Two panels: what costs nothing, and what costs $25. The free one
+       comes first — a stranger has no reason to trust a price before they have
+       read a word of the thing. */
+    .price-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .price-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+    .price-card.paid { background: var(--accent-soft); border-color: var(--accent-line); }
+    .price-card .tier { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+    .price-card .amount { font-size: 34px; letter-spacing: -0.03em; margin: 6px 0 2px; font-weight: 700; }
+    .price-card .terms { font-size: 13px; color: var(--ink-faint); margin: 0 0 16px; }
+    .price-card ul { margin: 0 0 20px; padding: 0; list-style: none; font-size: 14.5px; line-height: 1.5; }
+    /* Not display:flex on the li: any <strong> or <em> inside the sentence would
+       become a flex item of its own and break the line into columns. Absolute
+       tick, ordinary text flow. */
+    .price-card li { position: relative; padding-left: 22px; margin-bottom: 9px; color: var(--ink-soft); }
+    .price-card li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--green);
+      font-weight: 700;
+    }
+    .price-card .btn { margin-top: auto; text-align: center; }
+    .buy-how { font-size: 13.5px; color: var(--ink-faint); line-height: 1.6; margin: 0 0 64px; }
+    .lp-foot { margin-top: 56px; font-size: 12px; color: var(--ink-faint); line-height: 1.6; }
+    @media (max-width: 640px) {
+      .module-list { columns: 1; }
+      .lp-nav { margin-bottom: 32px; }
+      /* The page is read on a phone before it is read anywhere else. Full-width
+         buttons, facts in a tidy 2×2 instead of a ragged wrap, and padding that
+         clears the notch and the home indicator. */
+      .lp {
+        padding-left: max(20px, env(safe-area-inset-left));
+        padding-right: max(20px, env(safe-area-inset-right));
+        padding-bottom: calc(64px + env(safe-area-inset-bottom));
+      }
+      .hero .row-gap { display: grid; gap: 10px; }
+      .hero .row-gap .btn { text-align: center; }
+      .btn.big { padding: 15px 26px; }
+      .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 16px; margin: 36px 0 52px; }
+      .cta { padding: 26px 20px; }
+      .price-card, .demo, .feature { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#lp-main">Skip to content</a>
+  <div class="lp">
+    <nav class="lp-nav" aria-label="Site">
+      <span class="brand-icon"><!--gen:icon-->ƒ<!--/gen--></span>
+      <strong><!--gen:title-->Precalculus<!--/gen--></strong>
+      <span class="lp-actions">
+        <a class="btn secondary" href="course.html#/login">Sign in</a>
+      </span>
+    </nav>
+
+    <header class="hero" id="lp-main" tabindex="-1">
+      <h1><!--gen:heroTitle-->The lectures show the example. This shows the solution.<!--/gen--></h1>
+      <p class="lede"><!--gen:lede-->Seven modules written to be read instead of the slides, a tab of multi-part problems in the exact shape the papers use — worked one step at a time, with the mark scheme — and trainers you drive with a slider. Module 01 is open in full.<!--/gen--></p>
+      <div class="row-gap"><!--gen:heroButtons-->
+        <a class="btn big" href="course.html#/ch01/learn">Read Module 01 free</a>
+        <a class="btn secondary big" href="#price">Get the rest — $25</a>
+      <!--/gen--></div>
+    </header>
+
+    <div class="facts"><!--gen:facts-->
+      <div class="fact"><strong>7</strong><span>modules</span></div>
+      <div class="fact"><strong>11</strong><span>problems, every one worked line by line</span></div>
+      <div class="fact"><strong>84</strong><span>multiple-choice questions</span></div>
+      <div class="fact"><strong>70</strong><span>written questions with mark schemes</span></div>
+      <div class="fact"><strong>2</strong><span>reference pages you can keep open beside the work</span></div>
+      <div class="fact"><strong>$25</strong><span>once, not a subscription</span></div>
+    <!--/gen--></div>
+
+    <h2>What makes it different</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Wrong answers are the lesson</h3>
+        <p>Every distractor is tied to a named misunderstanding, not just marked wrong — so
+          you find out what you actually believe that isn't true.</p>
+      </div>
+      <div class="feature">
+        <h3>Written answers get a mark scheme</h3>
+        <p>Short and extended questions come with the examiner's marking points. You mark
+          your own answer against them before the model answer appears.</p>
+      </div>
+      <div class="feature">
+        <h3>Taught from zero</h3>
+        <p>You don't need the lecture slides or a textbook open beside you. The notes carry
+          the whole chapter, in order, with the common mistakes called out.</p>
+      </div>
+      <div class="feature">
+        <h3>Works on your phone</h3>
+        <p>The whole course on a laptop or a phone on the bus, and one key covers both.
+          Progress is kept on each device separately — what you answer on the bus stays on
+          the phone, so pick one for practice if you want a single score.</p>
+      </div>
+    </div>
+
+    <h2>What a question looks like</h2>
+    <div class="demo"><!--gen:demo-->
+      <p class="demo-q">Solve \(|3x-6| > 9\). Which is the solution set?</p>
+      <div class="demo-opt picked"><span class="l">A</span><span>(−1, 5)</span></div>
+      <div class="demo-opt right"><span class="l">B</span><span>(−∞, −1) ∪ (5, ∞)</span></div>
+      <div class="demo-opt"><span class="l">C</span><span>(5, ∞)</span></div>
+      <div class="demo-opt"><span class="l">D</span><span>No solution</span></div>
+      <div class="demo-fb">
+        <span class="v">✗ Not quite — the answer is (B)</span>
+        <strong>What this mistake means:</strong> you split the absolute value the way a
+        <em>less-than</em> is split. Greater-than asks which points are <em>far</em> from 2,
+        and far in either direction: 3x − 6 &gt; 9 <em>or</em> 3x − 6 &lt; −9. Only a
+        less-than traps x between two numbers and gives one interval. Test x = 0: |−6| = 6,
+        which is not more than 9 — so 0 cannot be in the answer, and (A) contains it.
+        <br><br>→ Re-read section 1.7 in the notes
+      </div>
+    <!--/gen--></div>
+
+    <!--gen:modules--><h2>The 7 modules</h2>
+    <p class="buy-how" style="margin-bottom:18px">Every module lists what it covers inside the course, key or no key. Module 01 is open in full.</p>
+    <ul class="module-list">
+      <li><span class="n">00</span>Algebra Review</li>
+      <li><span class="n">01</span>Equations and Inequalities <strong>· free</strong></li>
+      <li><span class="n">02</span>Graphs and Functions</li>
+      <li><span class="n">03</span>Polynomial and Rational Functions</li>
+      <li><span class="n">04</span>Exponential and Logarithmic Functions</li>
+      <li><span class="n">05</span>Trigonometric Functions</li>
+      <li><span class="n">06</span>Identities and Trigonometric Equations</li>
+    </ul>
+    <!--/gen-->
+
+    <h2 id="price">What it costs</h2>
+    <!--gen:price-->
+    <div class="price-grid">
+      <div class="price-card">
+        <span class="tier">Free</span>
+        <span class="amount">$0</span>
+        <p class="terms">No key, no sign-up, no email.</p>
+        <ul>
+          <li><strong>Module 01, complete</strong> — notes, all 12 multiple-choice questions with answers and diagnostics, all 10 written questions with model answers and mark schemes</li>
+          <li>Its <strong>one-page summary</strong> — the whole chapter distilled, the same as every other module gets</li>
+          <li><strong>All 11 of its problems</strong>, in four tiers from warm-up to applied, each with the full working — not an answer at the back</li>
+          <li>3 interactive trainers for this chapter — move a slider, watch the formula answer back</li>
+          <li>A description of what each of the other 6 modules covers, so you know what you would be buying</li>
+        </ul>
+        <a class="btn secondary" href="course.html#/ch01/learn">Start Module 01</a>
+      </div>
+      <div class="price-card paid">
+        <span class="tier">Full course</span>
+        <span class="amount">$25</span>
+        <p class="terms">One payment. Yours for good — not a subscription.</p>
+        <ul>
+          <li><strong>6 more modules in full</strong> — 132 more questions with every answer worked</li>
+          <li>Every answer with the explanation of <em>why</em> each wrong option is wrong, and the section to re-read</li>
+          <li>Model answers and mark schemes for all 70 written questions</li>
+          <li>The one-page high-yield summary of every chapter</li>
+          <li>The other 2 reference pages: the exam map and the chapter 1 sheet</li>
+          <li>The mock exam and the pass over everything you got wrong</li>
+          <li>Two devices at a time — your laptop and your phone</li>
+        </ul>
+        <a class="btn" href="https://t.me/danypak" target="_blank" rel="noopener">Get a key — $25</a>
+      </div>
+    </div>
+    <!--/gen-->
+    <p class="buy-how"><!--gen:buyHow-->
+      <strong>How buying works.</strong> Message me on Telegram, send the payment, and I'll send
+      your access key back — by hand, usually the same day. One click on the link in that message
+      unlocks the course on the device you opened it with. Lost your key later? Message me and
+      I'll issue a new one; the old one stops working.
+    <!--/gen--></p>
+
+    <div class="cta">
+      <h2>Start reading now</h2>
+      <!--gen:cta--><p>Module 01 is open in full — notes, questions, answers, summary and
+        mark schemes. Decide after you've read one.</p>
+      <a class="btn big" href="course.html#/ch01/learn">Open Module 01</a><!--/gen-->
+    </div>
+
+    <p class="lp-foot">
+      <!--gen:attribution-->Independent study guide for a first course in College Algebra and Trigonometry. Every explanation, worked example, practice question and problem is written for this course. Section numbering follows Miller &amp; Gerken, College Algebra and Trigonometry, the textbook the lecture course is taught from; where a question from a past model paper is discussed, it is named where it appears, and no worked example from that textbook is reproduced. Not affiliated with or endorsed by any university, instructor or publisher.<!--/gen-->
+    </p>
+  </div>
+</body>
+</html>

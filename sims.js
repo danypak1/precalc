@@ -1,0 +1,1615 @@
+/* Interactive trainers — the engine.
+ *
+ * The split that matters: THIS FILE IS PUBLIC and carries no course content. It
+ * knows how to draw a projectile, a free-body diagram on an incline, a field
+ * from point charges — the mechanics of a scene, nothing about what a student is
+ * meant to notice. Every word a buyer pays for (the setup, the prompts, the
+ * "what to watch", the challenges and their explanations, the section to
+ * re-read) lives in chNN-sims.json, which ships inside the Worker for every paid
+ * module and is served under the same token as the notes.
+ *
+ * So a leaked copy of this file gives you a physics toy with no teaching in it,
+ * which is the same bargain the rest of the course makes: the machinery is
+ * visible, the product is not.
+ *
+ * No dependencies, no build step, and no eval: a scene's `type` selects a
+ * function from SCENES below. A config can parameterise a scene but can never
+ * introduce code — a sims file is data, and data from the network stays data.
+ */
+const SIMS = (() => {
+  const $ = (sel, root = document) => root.querySelector(sel);
+  /* Quotes included: these values land inside HTML attributes, and a config
+     arrives over the network. Author-controlled today, but the file claims a
+     config can never introduce code, and that claim has to be true rather than
+     nearly true. */
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  /* The sentences a trainer teaches with — its intro, what to watch for, the
+     challenges — go through the course's markdown renderer, so a maths course
+     can write "$f(x)=\dfrac{x^2-4}{x-2}$" where it would otherwise have to
+     write "(x squared minus 4) over (x minus 2)". Trainers were the one surface
+     in the calculus course where the maths was spelled out in words.
+
+     This does not weaken the claim at the top of the file. MD.inline escapes
+     the HTML before it applies any markdown rule, and KaTeX runs with its
+     default trust setting, which refuses \href, \url and raw-HTML macros — so
+     a config still cannot introduce markup or code, only formatting. Labels
+     that land inside HTML attributes (titles, control labels) keep esc(): an
+     attribute has nowhere to put a rendered formula.
+
+     Falls back to escaping when md.js is absent, so sims.js keeps working as a
+     standalone file. */
+  const prose = s => (typeof MD !== "undefined" && MD.inline ? MD.inline(String(s)) : esc(s));
+  /* Numeric attributes go through Number(): a slider bound is a number or the
+     control is broken, so there is nothing to escape and nothing to inject. */
+  const numAttr = (v, fallback = 0) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  /* Anything that rounds to zero at the printed precision IS zero here: cos 90°
+     comes back as 6.1e-17, and "Aₓ = 3.06e-16" teaches a student that a component
+     which should vanish merely gets small. Exponential form is kept for values
+     that are genuinely tiny but non-zero at this precision (fields, charges). */
+  const fmt = (v, dp = 2) => {
+    if (Math.abs(v) < 0.5 * Math.pow(10, -dp)) return (0).toFixed(dp);
+    return (Math.abs(v) >= 1e4 || Math.abs(v) < 1e-2) ? v.toExponential(2) : v.toFixed(dp);
+  };
+
+  /* ---------- canvas helpers ---------------------------------------------
+     Every scene draws in "world" units and lets the view do the mapping, so a
+     scene never has to know the pixel size — which is what makes the same scene
+     legible on a 375px phone and on a desktop. */
+  function view(ctx, { xmin, xmax, ymin, ymax, pad = 28, box }) {
+    /* `box` maps this view into a rectangle of the canvas instead of the whole
+       of it, which is what lets one scene draw two pictures of the same system
+       side by side (row picture and column picture). Omitted, the box is the
+       canvas and every existing scene behaves exactly as before. */
+    const bx = box ? box.x : 0, by = box ? box.y : 0;
+    const w = box ? box.w : ctx.canvas.clientWidth;
+    const h = box ? box.h : ctx.canvas.clientHeight;
+    const sx = (w - 2 * pad) / (xmax - xmin), sy = (h - 2 * pad) / (ymax - ymin);
+    const s = Math.min(sx, sy);
+    // One scale for both axes keeps angles honest — a 45° vector must look like
+    // 45°. The leftover space is then split evenly instead of piling up on one
+    // side, which had the vector scene hugging the left edge of a phone.
+    const ox = (w - (xmax - xmin) * s) / 2, oy = (h - (ymax - ymin) * s) / 2;
+    return {
+      w, h, s,
+      X: x => bx + ox + (x - xmin) * s,
+      Y: y => by + h - oy - (y - ymin) * s,
+    };
+  }
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
+  }
+
+  function line(ctx, x1, y1, x2, y2, colour, width = 2, dash) {
+    ctx.save();
+    ctx.strokeStyle = colour; ctx.lineWidth = width;
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function arrow(ctx, x1, y1, x2, y2, colour, width = 2.5) {
+    const a = Math.atan2(y2 - y1, x2 - x1), head = Math.min(11, Math.hypot(x2 - x1, y2 - y1) * 0.35);
+    line(ctx, x1, y1, x2, y2, colour, width);
+    ctx.save();
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(a - 0.4), y2 - head * Math.sin(a - 0.4));
+    ctx.lineTo(x2 - head * Math.cos(a + 0.4), y2 - head * Math.sin(a + 0.4));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function label(ctx, text, x, y, colour, align = "left", size = 12) {
+    ctx.save();
+    ctx.fillStyle = colour;
+    ctx.font = `${size}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textAlign = align; ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function axes(ctx, v, xlab, ylab) {
+    const ink = css("--ink-faint"), lineC = css("--line");
+    line(ctx, v.X(0), v.h - 28, v.w - 10, v.h - 28, lineC, 1);
+    line(ctx, v.X(0), v.h - 28, v.X(0), 10, lineC, 1);
+    if (xlab) label(ctx, xlab, v.w - 12, v.h - 14, ink, "right", 11);
+    if (ylab) label(ctx, ylab, v.X(0) + 6, 14, ink, "left", 11);
+  }
+
+  /* Axes through the origin, for the graph scenes: a calculus picture is read
+     against y = 0 and x = 0, not against the bottom-left corner of the box the
+     physics scenes use. */
+  function grid(ctx, v, xmin, xmax, ymin, ymax) {
+    const lineC = css("--line"), ink = css("--ink-faint");
+    for (let g = Math.ceil(xmin); g <= xmax; g++) {
+      line(ctx, v.X(g), v.Y(ymin), v.X(g), v.Y(ymax), lineC, g === 0 ? 1.6 : 0.5);
+    }
+    for (let g = Math.ceil(ymin); g <= ymax; g++) {
+      line(ctx, v.X(xmin), v.Y(g), v.X(xmax), v.Y(g), lineC, g === 0 ? 1.6 : 0.5);
+    }
+    label(ctx, "x", v.X(xmax) - 6, v.Y(0) - 10, ink, "right", 11);
+    label(ctx, "y", v.X(0) + 8, v.Y(ymax) + 12, ink, "left", 11);
+  }
+
+  /* Plot y = f(x) across the window. `f` may return null to break the curve,
+     which is what draws a hole rather than a line through one. */
+  function plot(ctx, v, f, xmin, xmax, colour, width = 2.4) {
+    ctx.save();
+    ctx.strokeStyle = colour; ctx.lineWidth = width;
+    ctx.beginPath();
+    let drawing = false;
+    const steps = 240;
+    for (let i = 0; i <= steps; i++) {
+      const x = xmin + (xmax - xmin) * i / steps;
+      const y = f(x);
+      if (y === null || !isFinite(y)) { drawing = false; continue; }
+      if (drawing) ctx.lineTo(v.X(x), v.Y(y));
+      else { ctx.moveTo(v.X(x), v.Y(y)); drawing = true; }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function dot(ctx, v, x, y, colour, filled = true, r = 4.5) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(v.X(x), v.Y(y), r, 0, Math.PI * 2);
+    if (filled) { ctx.fillStyle = colour; ctx.fill(); }
+    else {
+      // An open circle is the standard notation for "the curve approaches this
+      // point but does not include it" — the whole subject of the limit scene.
+      ctx.fillStyle = css("--panel"); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = colour; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ---------- scenes -------------------------------------------------------
+     Each takes the current parameter values and returns the readouts to print
+     under the canvas. Pure functions of `p` plus a canvas: no scene keeps state,
+     so re-rendering after a slider move is always correct. */
+  const SCENES = {
+    /* ---- precalculus ----------------------------------------------------
+       These three draw a number line rather than a plane, because the answer a
+       precalculus paper wants is a *set*, and a set of real numbers is a picture
+       of exactly one dimension. Each returns the same answer in the three
+       notations the exam asks for, so the student can see that they are one
+       object with three spellings rather than three things to memorise. */
+
+    /* An interval, in all three notations at once (§1.7, reused for sign charts
+       in §3.6). The endpoints and their open/closed state are the sliders. */
+    numberLine(ctx, p) {
+      const lo = Math.min(p.lo, p.hi), hi = Math.max(p.lo, p.hi);
+      const loIn = p.loClosed >= 0.5, hiIn = p.hiClosed >= 0.5;
+      const outside = p.outside >= 0.5;
+      const xmin = -10, xmax = 10;
+      const v = view(ctx, { xmin, xmax, ymin: -1, ymax: 1, pad: 26 });
+      const y0 = v.Y(0);
+      line(ctx, v.X(xmin), y0, v.X(xmax), y0, css("--ink-faint"), 1.5);
+      for (let t = xmin; t <= xmax; t += 1) {
+        const big = t % 5 === 0;
+        line(ctx, v.X(t), y0 - (big ? 6 : 3), v.X(t), y0 + (big ? 6 : 3), css("--ink-faint"), 1);
+        if (big) label(ctx, String(t), v.X(t), y0 + 20, css("--ink-faint"), "center", 10);
+      }
+      const shade = (from, to) =>
+        line(ctx, v.X(from), y0, v.X(to), y0, css("--accent"), 5);
+      if (outside) { shade(xmin, lo); shade(hi, xmax); }
+      else { shade(lo, hi); }
+      // Open below the line, closed filled: the same convention the paper marks.
+      dot(ctx, v, lo, 0, css("--accent"), outside ? !loIn : loIn, 5.5);
+      dot(ctx, v, hi, 0, css("--accent"), outside ? !hiIn : hiIn, 5.5);
+
+      const L = (n, closed) => (closed ? "[" : "(") + n;
+      const R = (n, closed) => n + (closed ? "]" : ")");
+      let interval, builder;
+      if (outside) {
+        // Outside an interval the endpoints swap their roles: the ray keeps the
+        // endpoint exactly when the middle does not.
+        interval = "(-∞, " + R(fmt(lo, 2), !loIn) + " ∪ " + L(fmt(hi, 2), !hiIn) + ", ∞)";
+        builder = "{x | x " + (loIn ? "<" : "≤") + " " + fmt(lo, 2)
+          + " or x " + (hiIn ? ">" : "≥") + " " + fmt(hi, 2) + "}";
+      } else if (lo === hi && !(loIn && hiIn)) {
+        interval = "∅";
+        builder = "{ }";
+      } else {
+        interval = L(fmt(lo, 2), loIn) + ", " + R(fmt(hi, 2), hiIn);
+        builder = "{x | " + fmt(lo, 2) + " " + (loIn ? "≤" : "<")
+          + " x " + (hiIn ? "≤" : "<") + " " + fmt(hi, 2) + "}";
+      }
+      const width = outside ? Infinity : hi - lo;
+      return [
+        ["shape", outside ? "two rays (an 'or')" : "one interval (an 'and')"],
+        ["interval notation", interval],
+        ["set-builder notation", builder],
+        ["left endpoint", (outside ? !loIn : loIn) ? "included" : "excluded"],
+        ["right endpoint", (outside ? !hiIn : hiIn) ? "included" : "excluded"],
+        ["length", width === Infinity ? "infinite" : fmt(width, 2)],
+      ];
+    },
+
+    /* |x - a| against k, drawn as a wedge cut by a horizontal line (§1.6-1.7).
+       The whole and/or split is visible: below the line is one piece, above it
+       is two, and a negative k has the line under the vertex where the wedge
+       never reaches. */
+    absValueWedge(ctx, p) {
+      const a = p.a, k = p.k, greater = p.greater >= 0.5;
+      const xmin = -10, xmax = 10, ymin = -4, ymax = 10;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 24 });
+      // grid() already labels both axes and draws the heavy zero lines; calling
+      // axes() as well printed a second "x" and "y" and a second pair of axis
+      // lines at fixed pixel offsets, cutting across the picture.
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      plot(ctx, v, x => Math.abs(x - a), xmin, xmax, css("--ink"));
+      line(ctx, v.X(xmin), v.Y(k), v.X(xmax), v.Y(k), css("--green"), 1.6, [6, 4]);
+      label(ctx, "y = " + fmt(k, 2), v.X(xmax) - 6, v.Y(k) - 10, css("--green"), "right", 11);
+
+      const y0 = v.Y(0);
+      const shade = (from, to) => line(ctx, v.X(from), y0, v.X(to), y0, css("--accent"), 5);
+      let solution, split, count;
+      if (k < 0) {
+        // The two cases the lecture slides never state, and both are on papers.
+        solution = greater ? "(-∞, ∞)" : "∅";
+        split = greater ? "always true: a distance is never negative"
+                        : "impossible: a distance is never negative";
+        count = greater ? "every real number" : "no solution";
+        if (greater) shade(xmin, xmax);
+      } else if (greater) {
+        solution = "(-∞, " + fmt(a - k, 2) + ") ∪ (" + fmt(a + k, 2) + ", ∞)";
+        split = "x - " + fmt(a, 2) + " > " + fmt(k, 2) + "  or  x - " + fmt(a, 2) + " < -" + fmt(k, 2);
+        count = "two rays (an 'or')";
+        shade(xmin, a - k); shade(a + k, xmax);
+      } else {
+        solution = "(" + fmt(a - k, 2) + ", " + fmt(a + k, 2) + ")";
+        split = "-" + fmt(k, 2) + " < x - " + fmt(a, 2) + " < " + fmt(k, 2);
+        count = "one interval (an 'and')";
+        shade(a - k, a + k);
+      }
+      dot(ctx, v, a, 0, css("--ink-faint"), true, 4);
+      return [
+        ["inequality", "|x - " + fmt(a, 2) + "| " + (greater ? ">" : "<") + " " + fmt(k, 2)],
+        ["splits into", split],
+        ["answer shape", count],
+        ["solution", solution],
+        ["distance from", fmt(a, 2)],
+      ];
+    },
+
+    /* Why a checked root is a step and not a ritual (§1.1, §1.6). Both sides of
+       sqrt(x + 6) = x + c are drawn; the roots of the SQUARED equation are marked,
+       and a root is kept only where the two curves actually meet — which is
+       precisely where the right-hand side is not negative. */
+    extraneousRoot(ctx, p) {
+      const c = p.c;
+      const xmin = -7, xmax = 10, ymin = -5, ymax = 8;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 24 });
+      // grid() already labels both axes and draws the heavy zero lines; calling
+      // axes() as well printed a second "x" and "y" and a second pair of axis
+      // lines at fixed pixel offsets, cutting across the picture.
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      plot(ctx, v, x => (x >= -6 ? Math.sqrt(x + 6) : null), -6, xmax, css("--ink"));
+      plot(ctx, v, x => x + c, xmin, xmax, css("--green"));
+
+      // Squaring gives x^2 + (2c - 1)x + (c^2 - 6) = 0.
+      const A = 1, B = 2 * c - 1, C = c * c - 6;
+      const disc = B * B - 4 * A * C;
+      const kept = [], rejected = [];
+      if (disc >= 0) {
+        const r = disc === 0 ? [-B / 2] : [(-B - Math.sqrt(disc)) / 2, (-B + Math.sqrt(disc)) / 2];
+        for (const x of r) {
+          const rhs = x + c;
+          // Genuine only where the radicand is defined AND the right side is not
+          // negative — a principal square root never is.
+          const good = x >= -6 - 1e-9 && rhs >= -1e-9;
+          (good ? kept : rejected).push(x);
+          dot(ctx, v, x, rhs, good ? css("--accent") : css("--ink-faint"), good, 5);
+        }
+      }
+      const show = a => (a.length ? a.map(x => fmt(x, 2)).join(", ") : "none");
+      return [
+        ["equation", "√(x + 6) = x + " + fmt(c, 2)],
+        ["after squaring", "x² + " + fmt(B, 2) + "x + " + fmt(C, 2) + " = 0"],
+        ["discriminant", fmt(disc, 2)],
+        ["candidates", disc < 0 ? "none (no real candidates)" : show(kept.concat(rejected).sort((m, n) => m - n))],
+        ["survive the check", show(kept.sort((m, n) => m - n))],
+        ["extraneous", show(rejected.sort((m, n) => m - n))],
+      ];
+    },
+
+    /* Vector components and the resultant — the ch01 trainer. */
+    vectors(ctx, p) {
+      const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;
+      const ax = A * Math.cos(tA), ay = A * Math.sin(tA);
+      const bx = B * Math.cos(tB), by = B * Math.sin(tB);
+      const rx = ax + bx, ry = ay + by;
+      // Fit the window to what is actually drawn rather than to a symmetric box:
+      // two vectors in the upper half left the bottom half of a phone screen empty.
+      const xs = [0, ax, rx, bx], ys = [0, ay, ry, by];
+      const m = 0.18 * Math.max(2, Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+      const v = view(ctx, {
+        xmin: Math.min(...xs) - m, xmax: Math.max(...xs) + m,
+        ymin: Math.min(...ys) - m, ymax: Math.max(...ys) + m,
+      });
+      const span = Math.max(...xs.map(Math.abs), ...ys.map(Math.abs)) + m;
+      const lineC = css("--line"), ink = css("--ink-faint");
+      line(ctx, v.X(-span), v.Y(0), v.X(span), v.Y(0), lineC, 1);
+      line(ctx, v.X(0), v.Y(-span), v.X(0), v.Y(span), lineC, 1);
+      label(ctx, "x", v.X(span) - 8, v.Y(0) - 10, ink, "right", 11);
+      label(ctx, "y", v.X(0) + 10, v.Y(span) + 10, ink, "left", 11);
+      // components of A, drawn dashed so "a component is a number, not the vector"
+      line(ctx, v.X(0), v.Y(0), v.X(ax), v.Y(0), css("--accent"), 1.5, [4, 4]);
+      line(ctx, v.X(ax), v.Y(0), v.X(ax), v.Y(ay), css("--accent"), 1.5, [4, 4]);
+      arrow(ctx, v.X(0), v.Y(0), v.X(ax), v.Y(ay), css("--accent"));
+      label(ctx, "A", v.X(ax) + 8, v.Y(ay), css("--accent"), "left", 13);
+      arrow(ctx, v.X(ax), v.Y(ay), v.X(rx), v.Y(ry), css("--green"));
+      label(ctx, "B", v.X((ax + rx) / 2) + 8, v.Y((ay + ry) / 2), css("--green"), "left", 13);
+      arrow(ctx, v.X(0), v.Y(0), v.X(rx), v.Y(ry), css("--red"), 3);
+      label(ctx, "R = A + B", v.X(rx) + 8, v.Y(ry) - 12, css("--red"), "left", 13);
+      const dir = (Math.atan2(ry, rx) * 180 / Math.PI + 360) % 360;
+      return [
+        ["Aₓ", `${fmt(ax)}`], ["Aᵧ", `${fmt(ay)}`],
+        ["Rₓ", `${fmt(rx)}`], ["Rᵧ", `${fmt(ry)}`],
+        ["|R|", `${fmt(Math.hypot(rx, ry))}`], ["direction", `${fmt(dir, 1)}°`],
+      ];
+    },
+
+    /* Block on an incline: the free-body diagram, and the sin/cos decision that
+       decides most of Chapter 5's marks — ch05. */
+    incline(ctx, p) {
+      const g = 9.8, m = p.m, th = p.theta * Math.PI / 180, mus = p.mu;
+      const w = m * g, along = w * Math.sin(th), perp = w * Math.cos(th);
+      const fmax = mus * perp, slides = along > fmax + 1e-9;
+      const a = slides ? (along - fmax) / m : 0;
+      const v = view(ctx, { xmin: -1.1, xmax: 1.1, ymin: -0.75, ymax: 0.75, pad: 22 });
+      const ink = css("--ink-faint");
+      // the slope itself
+      const x0 = -1.0, y0 = -0.55, len = 1.9;
+      const sx = x0 + len * Math.cos(th), sy = y0 + len * Math.sin(th);
+      line(ctx, v.X(x0), v.Y(y0), v.X(sx), v.Y(sy), css("--line"), 3);
+      line(ctx, v.X(x0), v.Y(y0), v.X(sx), v.Y(y0), css("--line"), 1, [4, 4]);
+      label(ctx, `${p.theta}°`, v.X(x0) + 26, v.Y(y0) - 10, ink, "left", 12);
+      // the block, drawn on the slope at its midpoint
+      const bx = x0 + 0.95 * Math.cos(th), by = y0 + 0.95 * Math.sin(th);
+      ctx.save();
+      ctx.translate(v.X(bx), v.Y(by)); ctx.rotate(-th);
+      ctx.fillStyle = css("--accent-soft"); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2;
+      ctx.fillRect(-17, -30, 34, 26); ctx.strokeRect(-17, -30, 34, 26);
+      ctx.restore();
+      // forces, scaled so the longest is a fixed length on screen
+      const big = Math.max(w, perp, fmax, 1e-6), sc = 70 / big;
+      const cx = v.X(bx), cy = v.Y(by) - 16;
+      arrow(ctx, cx, cy, cx, cy + w * sc, css("--red"));
+      label(ctx, "w = mg", cx + 6, cy + w * sc + 10, css("--red"), "left", 11);
+      // The normal is perpendicular to the SLOPE, not to the ground, so it leans
+      // off vertical by θ towards the UPHILL side: world (−sin θ, cos θ), which
+      // is (−sin θ, −cos θ) in pixels because Y runs downwards. Leaning it the
+      // other way draws the one picture this trainer exists to correct.
+      const nx = cx - perp * sc * Math.sin(th), ny = cy - perp * sc * Math.cos(th);
+      arrow(ctx, cx, cy, nx, ny, css("--green"));
+      label(ctx, "n", nx - 6, ny - 4, css("--green"), "right", 11);
+      // Friction opposes the block's tendency to slide, and here that tendency is
+      // down the slope in both cases — static and holding, or kinetic and merely
+      // slowing the slide. So the arrow points UP the slope either way:
+      // world (cos θ, sin θ) → pixels (cos θ, −sin θ).
+      const fmag = slides ? fmax : along;
+      const fx = cx + fmag * sc * Math.cos(th), fy = cy - fmag * sc * Math.sin(th);
+      arrow(ctx, cx, cy, fx, fy, css("--accent"));
+      label(ctx, slides ? "fₖ (sliding)" : "fₛ (holding)", fx + 6, fy - 10, css("--accent"), "left", 11);
+      return [
+        ["w = mg", `${fmt(w, 1)} N`],
+        ["along slope", `${fmt(along, 1)} N`],
+        ["perpendicular", `${fmt(perp, 1)} N`],
+        ["max static f", `${fmt(fmax, 1)} N`],
+        ["verdict", slides ? "slides" : "stays put"],
+        ["acceleration", `${fmt(a, 2)} m/s²`],
+      ];
+    },
+
+    /* Work as the area under a force-displacement graph — ch06. A constant force
+       for part of the trip, then a spring: the two shapes the exam uses. */
+    workArea(ctx, p) {
+      const F = p.F, d = p.d, k = p.k, x = p.x;
+      const wConst = F * d, wSpring = -0.5 * k * x * x;
+      const xmax = d + x + 0.5, ymax = Math.max(F, k * x, 1) * 1.25;
+      const v = view(ctx, { xmin: 0, xmax, ymin: -ymax * 0.15, ymax });
+      axes(ctx, v, "x (m)", "F (N)");
+      // constant-force block
+      ctx.save();
+      ctx.fillStyle = css("--accent-soft"); ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2;
+      ctx.fillRect(v.X(0), v.Y(F), v.X(d) - v.X(0), v.Y(0) - v.Y(F));
+      ctx.strokeRect(v.X(0), v.Y(F), v.X(d) - v.X(0), v.Y(0) - v.Y(F));
+      ctx.restore();
+      label(ctx, `${fmt(wConst, 0)} J`, (v.X(0) + v.X(d)) / 2, v.Y(F / 2), css("--accent"), "center", 12);
+      // spring triangle, below the axis because the force opposes the motion
+      if (x > 0) {
+        ctx.save();
+        ctx.fillStyle = css("--red-soft"); ctx.strokeStyle = css("--red"); ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(v.X(d), v.Y(0)); ctx.lineTo(v.X(d + x), v.Y(0));
+        ctx.lineTo(v.X(d + x), v.Y(-k * x * 0.999 * 0.15)); ctx.closePath();
+        ctx.fill(); ctx.stroke(); ctx.restore();
+        line(ctx, v.X(d), v.Y(0), v.X(d + x), v.Y(-ymax * 0.15 * Math.min(1, k * x / (ymax))),
+             css("--red"), 2);
+        label(ctx, `${fmt(wSpring, 0)} J`, v.X(d + x / 2), v.Y(0) + 16, css("--red"), "center", 12);
+      }
+      return [
+        ["W by the push", `${fmt(wConst, 1)} J`],
+        ["W by the spring", `${fmt(wSpring, 1)} J`],
+        ["net work", `${fmt(wConst + wSpring, 1)} J`],
+        ["spring force at x", `${fmt(k * x, 1)} N`],
+      ];
+    },
+
+    /* Two point charges: the field on the axis between and beyond them — ch11. */
+    charges(ctx, p) {
+      const k = 8.99e9, q1 = p.q1 * 1e-9, q2 = p.q2 * 1e-9, d = p.d, xp = p.x;
+      const r1 = Math.abs(xp), r2 = Math.abs(d - xp);
+      const e1 = r1 > 0.02 ? k * q1 / (r1 * r1) * Math.sign(xp || 1) : NaN;
+      const e2 = r2 > 0.02 ? -k * q2 / (r2 * r2) * Math.sign(d - xp || 1) : NaN;
+      const net = e1 + e2;
+      const v = view(ctx, { xmin: -0.6, xmax: d + 0.6, ymin: -0.5, ymax: 0.5, pad: 24 });
+      line(ctx, v.X(-0.6), v.Y(0), v.X(d + 0.6), v.Y(0), css("--line"), 1);
+      const draw = (x, q, name) => {
+        ctx.save();
+        ctx.fillStyle = q >= 0 ? css("--red") : css("--accent");
+        ctx.beginPath(); ctx.arc(v.X(x), v.Y(0), 11, 0, 7); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.font = "bold 13px system-ui"; ctx.textAlign = "center";
+        ctx.textBaseline = "middle"; ctx.fillText(q >= 0 ? "+" : "−", v.X(x), v.Y(0));
+        ctx.restore();
+        label(ctx, name, v.X(x), v.Y(0) - 22, css("--ink-faint"), "center", 11);
+      };
+      draw(0, q1, `${p.q1} nC`); draw(d, q2, `${p.q2} nC`);
+      // the test point and the net field there
+      line(ctx, v.X(xp), v.Y(0.28), v.X(xp), v.Y(-0.28), css("--ink-faint"), 1, [3, 3]);
+      if (isFinite(net)) {
+        const L = Math.min(90, Math.max(12, Math.log10(Math.abs(net) + 1) * 26));
+        arrow(ctx, v.X(xp), v.Y(0.14), v.X(xp) + Math.sign(net) * L, v.Y(0.14), css("--green"), 3);
+      }
+      return [
+        ["distance to q₁", `${fmt(r1)} m`],
+        ["distance to q₂", `${fmt(r2)} m`],
+        ["E from q₁", isFinite(e1) ? `${fmt(e1, 0)} N/C` : "—"],
+        ["E from q₂", isFinite(e2) ? `${fmt(e2, 0)} N/C` : "—"],
+        ["net E", isFinite(net) ? `${fmt(net, 0)} N/C` : "—"],
+        // A zero field has no direction, and printing one where the two
+        // contributions cancel is exactly the misconception this trainer exists
+        // to kill.
+        ["points", !isFinite(net) ? "—"
+          : Math.abs(net) < 0.5 ? "nowhere — it cancels"
+          : net > 0 ? "towards +x" : "towards −x"],
+      ];
+    },
+
+    /* Charging and discharging a capacitor through a resistor — ch16. */
+    rc(ctx, p) {
+      const R = p.R, C = p.C * 1e-6, emf = p.emf, tau = R * C;
+      const tmax = Math.max(5 * tau, 1e-3);
+      const v = view(ctx, { xmin: 0, xmax: tmax, ymin: 0, ymax: emf * 1.15 });
+      axes(ctx, v, "t (s)", "V (V)");
+      const curve = (f, colour) => {
+        ctx.save(); ctx.strokeStyle = colour; ctx.lineWidth = 2.5; ctx.beginPath();
+        for (let i = 0; i <= 140; i++) {
+          const t = tmax * i / 140;
+          i ? ctx.lineTo(v.X(t), v.Y(f(t))) : ctx.moveTo(v.X(t), v.Y(f(t)));
+        }
+        ctx.stroke(); ctx.restore();
+      };
+      curve(t => emf * (1 - Math.exp(-t / tau)), css("--accent"));
+      curve(t => emf * Math.exp(-t / tau), css("--red"));
+      line(ctx, v.X(tau), v.Y(0), v.X(tau), v.Y(emf * 1.1), css("--ink-faint"), 1, [4, 4]);
+      label(ctx, "τ", v.X(tau) + 5, v.Y(emf * 1.05), css("--ink-faint"), "left", 12);
+      label(ctx, "charging", v.X(tmax * 0.55), v.Y(emf * 0.93), css("--accent"), "left", 11);
+      label(ctx, "discharging", v.X(tmax * 0.35), v.Y(emf * 0.18), css("--red"), "left", 11);
+      return [
+        ["time constant τ", `${fmt(tau, 3)} s`],
+        ["V after one τ", `${fmt(emf * (1 - Math.exp(-1)), 2)} V`],
+        ["V after 5τ", `${fmt(emf * (1 - Math.exp(-5)), 2)} V`],
+        ["initial current", `${fmt(emf / R * 1000, 2)} mA`],
+        ["final charge", `${fmt(C * emf * 1e6, 1)} μC`],
+      ];
+    },
+
+    /* ---- calculus ---------------------------------------------------------
+       The four scenes below are the four ideas the whole of a first calculus
+       course is built from. Each one exists because the idea is a *motion* —
+       a point sliding in, rectangles getting thinner — and a still picture of
+       it in a textbook is the reason students learn the formula instead. */
+
+    /* A limit at a point the function never reaches: f(x) = (x²−4)/(x−2),
+       which is x+2 everywhere except at x = 2, where it is 0/0. Drag x and the
+       value closes in on 4 from either side while f(2) stays undefined. */
+    limitHole(ctx, p) {
+      const xmin = -1, xmax = 5, ymin = -1, ymax = 7.5;
+      const hole = 2, limit = 4;
+      const f = x => x + 2;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 24 });
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      // Two pieces, so the gap at x = 2 is visible as a gap.
+      plot(ctx, v, x => (x < hole ? f(x) : null), xmin, hole, css("--ink-faint"));
+      plot(ctx, v, x => (x > hole ? f(x) : null), hole, xmax, css("--ink-faint"));
+      dot(ctx, v, hole, limit, css("--ink-faint"), false);
+
+      const x = p.x;
+      // "At the hole" is a band, not a point: a slider step can never land
+      // exactly on 2, and a scene that only ever says "approaching" would never
+      // show the student the case the whole idea turns on.
+      const atHole = Math.abs(x - hole) < 0.006;
+      if (!atHole) {
+        const y = f(x);
+        line(ctx, v.X(x), v.Y(0), v.X(x), v.Y(y), css("--accent"), 1, [3, 3]);
+        line(ctx, v.X(xmin), v.Y(y), v.X(x), v.Y(y), css("--accent"), 1, [3, 3]);
+        dot(ctx, v, x, y, css("--accent"));
+      }
+      line(ctx, v.X(xmin), v.Y(limit), v.X(xmax), v.Y(limit), css("--green"), 1.5, [6, 4]);
+      label(ctx, "y → 4", v.X(xmax) - 8, v.Y(limit) - 12, css("--green"), "right", 11);
+      return [
+        ["x", fmt(x)],
+        ["f(x)", atHole ? "undefined (hole)" : fmt(f(x))],
+        ["distance from 2", fmt(Math.abs(x - hole), 3)],
+        ["f(2) itself", "undefined"],
+        ["limit as x → 2", fmt(limit)],
+      ];
+    },
+
+    /* The derivative as the slope a secant line settles on. f(x) = x² at
+       P = (1,1); the secant through P and (1+h, f(1+h)) has slope exactly
+       2+h, so shrinking h walks the number to 2 without ever dividing by 0. */
+    secantTangent(ctx, p) {
+      const xmin = -0.6, xmax = 3.2, ymin = -1, ymax = 8;
+      const f = x => x * x, a = 1, deriv = 2;
+      /* h = 0 is the one value the difference quotient does not have, so the
+         slider stops just short of it on whichever side it came from. Snapping
+         to zero would print a slope computed as 0/0. */
+      let h = p.h;
+      if (Math.abs(h) < 0.02) h = h < 0 ? -0.02 : 0.02;
+      const q = a + h, slope = (f(q) - f(a)) / h;
+
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 24 });
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      // The true tangent, faint and always there: the line the secant is
+      // converging to, so convergence is something you watch rather than infer.
+      const tan = x => f(a) + deriv * (x - a);
+      plot(ctx, v, tan, xmin, xmax, css("--green"), 1.5);
+      plot(ctx, v, f, xmin, xmax, css("--ink-faint"), 2.6);
+      const sec = x => f(a) + slope * (x - a);
+      plot(ctx, v, sec, xmin, xmax, css("--accent"), 2.2);
+      dot(ctx, v, a, f(a), css("--ink-faint"));
+      label(ctx, "P (1, 1)", v.X(a) - 10, v.Y(f(a)) + 16, css("--ink-faint"), "right", 11);
+      dot(ctx, v, q, f(q), css("--accent"));
+      label(ctx, "Q", v.X(q) + 8, v.Y(f(q)) - 8, css("--accent"), "left", 12);
+      return [
+        ["h", fmt(h)],
+        ["Q", `(${fmt(q)}, ${fmt(f(q))})`],
+        ["rise / run", `${fmt(f(q) - f(a))} / ${fmt(h)}`],
+        ["secant slope", fmt(slope)],
+        ["slope − 2", fmt(slope - deriv, 3)],
+        ["f′(1)", fmt(deriv)],
+      ];
+    },
+
+    /* A Riemann sum converging on a definite integral. f(x) = −0.5x² + 4x on
+       [0,6], whose exact area is 36. Left, right and midpoint rules are the
+       three the exam asks for, and the point is that they disagree at small n
+       and stop disagreeing as n grows. */
+    riemannSum(ctx, p) {
+      const a = 0, b = 6, exact = 36;
+      const f = x => -0.5 * x * x + 4 * x;
+      const n = Math.max(1, Math.round(p.n));
+      // 0 / 1 / 2 rather than "left" / "right": a config carries numbers, and
+      // the challenge checker compares numbers.
+      const mode = Math.round(p.mode ?? 0);
+      const dx = (b - a) / n;
+      const sampleOf = i => (mode === 0 ? a + i * dx
+        : mode === 1 ? a + (i + 1) * dx
+          : a + (i + 0.5) * dx);
+      let sum = 0;
+      for (let i = 0; i < n; i++) sum += f(sampleOf(i)) * dx;
+
+      const xmin = -0.5, xmax = 6.5, ymin = -0.5, ymax = 9.5;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 22 });
+      ctx.save();
+      ctx.fillStyle = css("--accent-soft");
+      ctx.strokeStyle = css("--accent");
+      ctx.lineWidth = n > 30 ? 0.4 : 1;
+      for (let i = 0; i < n; i++) {
+        const xL = a + i * dx, h = f(sampleOf(i));
+        const top = v.Y(h), base = v.Y(0);
+        ctx.fillRect(v.X(xL), Math.min(top, base), v.X(xL + dx) - v.X(xL), Math.abs(base - top));
+        ctx.strokeRect(v.X(xL), Math.min(top, base), v.X(xL + dx) - v.X(xL), Math.abs(base - top));
+      }
+      ctx.restore();
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      plot(ctx, v, x => (x >= a && x <= b ? f(x) : null), xmin, xmax, css("--ink-faint"), 2.6);
+      return [
+        ["rule", mode === 0 ? "left edge" : mode === 1 ? "right edge" : "midpoint"],
+        ["rectangles n", `${n}`],
+        ["width Δx", fmt(dx, 3)],
+        ["estimate", fmt(sum, 3)],
+        ["exact area", fmt(exact, 3)],
+        ["error", fmt(Math.abs(exact - sum), 3)],
+      ];
+    },
+
+    /* The Fundamental Theorem, watched rather than proved: A(x) is the area
+       under f from 0 to x, and the slope of A at x is the height of f at x —
+       at every x, which is what makes it a theorem and not a coincidence. */
+    ftcArea(ctx, p) {
+      const f = t => 0.5 * t + 1;          // the integrand
+      const A = x => 0.25 * x * x + x;      // its antiderivative with A(0) = 0
+      const x = p.x;
+      const xmin = -0.4, xmax = 6.4, ymin = -0.6, ymax = 16;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 20 });
+
+      // the accumulated area, shaded
+      ctx.save();
+      ctx.fillStyle = css("--green-soft");
+      ctx.beginPath();
+      ctx.moveTo(v.X(0), v.Y(0));
+      const steps = 80;
+      for (let i = 0; i <= steps; i++) {
+        const t = x * i / steps;
+        ctx.lineTo(v.X(t), v.Y(f(t)));
+      }
+      ctx.lineTo(v.X(x), v.Y(0));
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      plot(ctx, v, f, 0, xmax, css("--green"), 2.4);
+      plot(ctx, v, A, 0, xmax, css("--accent"), 2.2);
+      // A short tangent to A at x, whose slope is claimed to be f(x). Drawn, not
+      // asserted: the student can see it lie along A.
+      const m = f(x), half = 0.8;
+      line(ctx, v.X(x - half), v.Y(A(x) - m * half), v.X(x + half), v.Y(A(x) + m * half),
+           css("--ink-faint"), 2);
+      dot(ctx, v, x, f(x), css("--green"));
+      label(ctx, "f", v.X(x) + 8, v.Y(f(x)) - 8, css("--green"), "left", 12);
+      dot(ctx, v, x, A(x), css("--accent"));
+      label(ctx, "A", v.X(x) + 8, v.Y(A(x)) - 8, css("--accent"), "left", 12);
+      return [
+        ["x", fmt(x)],
+        ["f(x) — height of the curve", fmt(f(x))],
+        ["A(x) — area so far", fmt(A(x))],
+        ["slope of A at x", fmt(m)],
+        ["difference", fmt(Math.abs(m - f(x)), 3)],
+      ];
+    },
+
+    /* Projectile launched from a height — ch03. */
+    projectile(ctx, p) {
+      const g = 9.8, v0 = p.v0, th = p.angle * Math.PI / 180, h0 = p.h0;
+      const vx = v0 * Math.cos(th), vy0 = v0 * Math.sin(th);
+      const tHit = (vy0 + Math.sqrt(vy0 * vy0 + 2 * g * h0)) / g;
+      const range = vx * tHit;
+      const hMax = h0 + vy0 * vy0 / (2 * g);
+      const vImpact = Math.hypot(vx, vy0 - g * tHit);
+      const xmax = Math.max(range * 1.1, 5), ymax = Math.max(hMax * 1.25, 5);
+      const v = view(ctx, { xmin: 0, xmax, ymin: 0, ymax });
+      axes(ctx, v, "x (m)", "y (m)");
+      // the ground, then the path
+      line(ctx, v.X(0), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 2);
+      ctx.save();
+      ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2.5; ctx.beginPath();
+      for (let i = 0; i <= 120; i++) {
+        const t = tHit * i / 120, x = vx * t, y = h0 + vy0 * t - 0.5 * g * t * t;
+        i ? ctx.lineTo(v.X(x), v.Y(y)) : ctx.moveTo(v.X(x), v.Y(y));
+      }
+      ctx.stroke(); ctx.restore();
+      // apex marker and the launch velocity split into its components
+      const tApex = vy0 / g, xApex = vx * tApex;
+      if (tApex > 0 && tApex < tHit) {
+        line(ctx, v.X(xApex), v.Y(0), v.X(xApex), v.Y(hMax), css("--ink-faint"), 1, [3, 3]);
+        label(ctx, `h = ${fmt(hMax, 1)} m`, v.X(xApex) + 6, v.Y(hMax) - 10, css("--ink-faint"), "left", 11);
+      }
+      const sc = Math.min(60, v.s * v0 * 0.35) / Math.max(v0, 1e-6);
+      arrow(ctx, v.X(0), v.Y(h0), v.X(0) + vx * sc, v.Y(h0), css("--green"), 2);
+      arrow(ctx, v.X(0), v.Y(h0), v.X(0), v.Y(h0) - vy0 * sc, css("--red"), 2);
+      label(ctx, "vₓ constant", v.X(0) + vx * sc + 6, v.Y(h0) + 2, css("--green"), "left", 11);
+      return [
+        ["vₓ", `${fmt(vx)} m/s`], ["v₀ᵧ", `${fmt(vy0)} m/s`],
+        ["time of flight", `${fmt(tHit)} s`], ["range", `${fmt(range)} m`],
+        ["max height", `${fmt(hMax)} m`], ["impact speed", `${fmt(vImpact)} m/s`],
+      ];
+    },
+
+    /* Refraction at a boundary, and the moment it stops happening. Total internal
+       reflection is not a separate rule to memorise: it is Snell's law running out
+       of room, because sin θ₂ = (n₁/n₂)sin θ₁ cannot exceed one. The scene makes
+       that arithmetic visible — the refracted ray flattens onto the boundary and
+       then is simply not there. */
+    refraction(ctx, p) {
+      const t1 = p.theta * Math.PI / 180;
+      const s2 = (p.n1 / p.n2) * Math.sin(t1);
+      const tir = s2 > 1;
+      const t2 = tir ? NaN : Math.asin(s2);
+      const crit = p.n1 > p.n2 ? Math.asin(p.n2 / p.n1) : NaN;
+
+      const v = view(ctx, { xmin: -1, xmax: 1, ymin: -1, ymax: 1, pad: 22 });
+      // The denser side is tinted, so "which way does it bend" has an answer on
+      // screen before any number is read.
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.3, Math.max(0.05, (p.n2 - 1) * 0.22));
+      ctx.fillStyle = css("--accent");
+      ctx.fillRect(v.X(-1), v.Y(0), v.X(1) - v.X(-1), v.Y(-1) - v.Y(0));
+      ctx.restore();
+
+      line(ctx, v.X(-1), v.Y(0), v.X(1), v.Y(0), css("--accent"), 2);
+      line(ctx, v.X(0), v.Y(0.95), v.X(0), v.Y(-0.95), css("--ink-faint"), 1, [4, 4]);
+      label(ctx, "normal", v.X(0) + 6, v.Y(0.95) + 4, css("--ink-faint"), "left", 11);
+
+      // One colour per ray — incident amber, reflected red, refracted green. They
+      // were all one colour first, which read as a single bent line and left the
+      // scene test unable to tell which stroke was which.
+      const L = 0.9;
+      arrow(ctx, v.X(-L * Math.sin(t1)), v.Y(L * Math.cos(t1)), v.X(0), v.Y(0), css("--amber"), 2.5);
+      // The reflected ray is always there, and carries everything once TIR sets in.
+      arrow(ctx, v.X(0), v.Y(0), v.X(L * Math.sin(t1)), v.Y(L * Math.cos(t1)),
+            css("--red"), tir ? 2.8 : 1.4);
+      if (!tir) {
+        arrow(ctx, v.X(0), v.Y(0), v.X(L * Math.sin(t2)), v.Y(-L * Math.cos(t2)),
+              css("--green"), 2.5);
+      }
+
+      label(ctx, `θ₁ ${p.theta}°`, v.X(-0.32 * Math.sin(t1)) - 6, v.Y(0.42 * Math.cos(t1)),
+            css("--ink"), "right", 11);
+      label(ctx, `n₁ ${fmt(p.n1)}`, v.X(-0.97), v.Y(0) - 8, css("--ink-faint"), "left", 11);
+      label(ctx, `n₂ ${fmt(p.n2)}`, v.X(-0.97), v.Y(0) + 16, css("--ink-faint"), "left", 11);
+      if (tir) {
+        // Centred and terse: left-aligned from the normal, the full sentence ran
+        // off the right edge of a 303px canvas on a phone. The readout below
+        // carries the detail.
+        label(ctx, "no refracted ray — TIR",
+              v.X(0), v.Y(-0.62), css("--red"), "center", 12);
+      } else {
+        label(ctx, `θ₂ ${fmt(t2 * 180 / Math.PI, 1)}°`, v.X(0.34 * Math.sin(t2)) + 8,
+              v.Y(-0.44 * Math.cos(t2)), css("--ink"), "left", 11);
+      }
+
+      return [
+        ["refraction angle θ₂", tir ? "none" : `${fmt(t2 * 180 / Math.PI, 1)}°`],
+        ["sin θ₂ would need to be", fmt(s2, 3)],
+        ["critical angle", isFinite(crit) ? `${fmt(crit * 180 / Math.PI, 1)}°`
+                                         : "none (n₁ < n₂)"],
+        ["speed below", `${fmt(2.998e8 / p.n2)} m/s`],
+      ];
+    },
+
+    /* Three ideal polarisers. Two things a reader gets wrong and a slider does
+       not: unpolarised light loses exactly half at the first sheet whatever its
+       angle, and a third sheet between two crossed ones lets light through again.
+       The middle sheet has no on/off control because it needs none — sheet A is
+       vertical, so setting B to 0° is physically the same as removing it. */
+    polarisers(ctx, p) {
+      const rad = Math.PI / 180;
+      const a = 0, b = p.angleB, c = p.angleC;
+      const iA = 0.5;
+      const iB = iA * Math.pow(Math.cos((b - a) * rad), 2);
+      const iC = iB * Math.pow(Math.cos((c - b) * rad), 2);
+
+      const v = view(ctx, { xmin: -1.15, xmax: 1.15, ymin: -0.62, ymax: 0.62, pad: 20 });
+      const sheets = [[-0.55, a, "A", iA], [0, b, "B", iB], [0.55, c, "C", iC]];
+
+      // The beam, dimming at each sheet. Thickness carries the intensity too, so
+      // the reading does not rest on colour alone.
+      let prev = 1, x0 = -1.1;
+      for (const [x, , , after] of sheets) {
+        const w = Math.max(1, 13 * Math.sqrt(prev));
+        line(ctx, v.X(x0), v.Y(0), v.X(x - 0.1), v.Y(0), css("--amber"), w);
+        prev = after; x0 = x + 0.1;
+      }
+      line(ctx, v.X(x0), v.Y(0), v.X(1.1), v.Y(0), css("--amber"), Math.max(1, 13 * Math.sqrt(prev)));
+
+      for (const [x, ang, name, after] of sheets) {
+        const rx = 15, ry = 46;
+        ctx.save();
+        ctx.translate(v.X(x), v.Y(0));
+        ctx.strokeStyle = css("--accent");
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+        // The transmission axis, clipped to the rim of the sheet it belongs to.
+        const t = ang * rad;
+        const reach = 0.92 / Math.hypot(Math.sin(t) / rx, Math.cos(t) / ry);
+        ctx.rotate(t);
+        ctx.strokeStyle = css("--green");
+        ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(0, -reach); ctx.lineTo(0, reach); ctx.stroke();
+        ctx.restore();
+        label(ctx, name, v.X(x), v.Y(0) - ry - 10, css("--ink"), "center", 12);
+        label(ctx, `${ang}°`, v.X(x), v.Y(0) + ry + 16, css("--ink-faint"), "center", 11);
+        label(ctx, `${fmt(after * 100, 1)}%`, v.X(x), v.Y(0) + ry + 31, css("--ink-faint"), "center", 11);
+      }
+      label(ctx, "unpolarised", v.X(-1.1), v.Y(0) - 22, css("--ink-faint"), "left", 11);
+      if (iC < 0.001) {
+        label(ctx, "extinguished", v.X(1.1), v.Y(0) - 22, css("--red"), "right", 11);
+      }
+
+      return [
+        ["after sheet A", `${fmt(iA * 100, 1)}% of I₀`],
+        ["after sheet B", `${fmt(iB * 100, 1)}% of I₀`],
+        ["after sheet C", `${fmt(iC * 100, 1)}% of I₀`],
+        ["angle B to C", `${fmt(Math.abs(c - b), 0)}°`],
+      ];
+    },
+
+    /* ---------- linear algebra ---------------------------------------------
+       All three of these draw in the plane, because the plane is where a
+       student can still see what the arithmetic did. Everything they show
+       generalises to ℝⁿ, and the readouts are written so the numbers, not the
+       picture, carry the lesson. */
+
+    /* What c·v + d·w can reach — the span question, before it has that name.
+       The whole point is the degenerate case: when w is a multiple of v every
+       combination collapses onto one line, and no choice of c and d escapes it.
+       The cross term v₁w₂ − v₂w₁ is what decides, and it is worth meeting here
+       (as "are these parallel?") long before it is called a determinant. */
+    linComb(ctx, p) {
+      const v = [p.v1, p.v2], w = [p.w1, p.w2], c = p.c, d = p.d;
+      const cv = [c * v[0], c * v[1]], dw = [d * w[0], d * w[1]];
+      const sum = [cv[0] + dw[0], cv[1] + dw[1]];
+      const cross = v[0] * w[1] - v[1] * w[0];      // zero ⟺ v ∥ w
+      const parallel = Math.abs(cross) < 1e-9;
+      const xs = [0, v[0], w[0], cv[0], dw[0], sum[0]];
+      const ys = [0, v[1], w[1], cv[1], dw[1], sum[1]];
+      const span = Math.max(3, ...xs.map(Math.abs), ...ys.map(Math.abs)) * 1.15;
+      const vw = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, vw, -span, span, -span, span);
+      const X = vw.X, Y = vw.Y;
+      /* The reachable set, drawn first so the arrows sit on top of it: a line
+         when the two directions secretly agree, otherwise the whole plane
+         (shown as the two directions' own lines, which is as much of "every
+         point" as a picture can honestly claim). */
+      const far = span * 3;
+      const ray = (u, colour) => {
+        const n = Math.hypot(u[0], u[1]) || 1;
+        line(ctx, X(-far * u[0] / n), Y(-far * u[1] / n),
+                  X(far * u[0] / n), Y(far * u[1] / n), colour, 1, [3, 4]);
+      };
+      if (parallel) ray(Math.hypot(v[0], v[1]) ? v : w, css("--red"));
+      else { ray(v, css("--line")); ray(w, css("--line")); }
+      // c·v and d·w drawn tip-to-tail, so the sum is visibly "do this, then that"
+      line(ctx, X(0), Y(0), X(cv[0]), Y(cv[1]), css("--accent"), 1.5, [4, 4]);
+      line(ctx, X(cv[0]), Y(cv[1]), X(sum[0]), Y(sum[1]), css("--green"), 1.5, [4, 4]);
+      /* Labels sit beside the middle of their own arrow, not at its tip: with
+         short vectors every tip crowds the origin, and "v" and "w" landed on
+         top of each other on a 375px screen. */
+      const tag = (u, text, colour) => {
+        const n = Math.hypot(u[0], u[1]) || 1;
+        label(ctx, text, X(u[0] * 0.55) - 9 * u[1] / n, Y(u[1] * 0.55) - 9 * u[0] / n,
+              colour, "center", 12);
+      };
+      arrow(ctx, X(0), Y(0), X(v[0]), Y(v[1]), css("--accent"));
+      tag(v, "v", css("--accent"));
+      arrow(ctx, X(0), Y(0), X(w[0]), Y(w[1]), css("--green"));
+      tag(w, "w", css("--green"));
+      arrow(ctx, X(0), Y(0), X(sum[0]), Y(sum[1]), css("--red"), 3);
+      dot(ctx, vw, sum[0], sum[1], css("--red"));
+      label(ctx, "cv + dw", X(sum[0]) + 8, Y(sum[1]) + 14, css("--red"), "left", 12);
+      return [
+        ["c·v", `(${fmt(cv[0], 0)}, ${fmt(cv[1], 0)})`],
+        ["d·w", `(${fmt(dw[0], 0)}, ${fmt(dw[1], 0)})`],
+        ["cv + dw", `(${fmt(sum[0], 0)}, ${fmt(sum[1], 0)})`],
+        ["v₁w₂ − v₂w₁", `${fmt(cross, 0)}`],
+        ["what they reach", parallel ? "one line only" : "the whole plane"],
+      ];
+    },
+
+    /* The dot product as one number carrying both length and angle. The
+       readouts are laid out in the order the exam works in: components →
+       dot product → lengths → cos θ → θ, with the perpendicular verdict last,
+       so a student can see which step went wrong rather than only that the
+       angle is off. */
+    dotAngle(ctx, p) {
+      const v = [p.v1, p.v2], w = [p.w1, p.w2];
+      const dotP = v[0] * w[0] + v[1] * w[1];
+      const nv = Math.hypot(v[0], v[1]), nw = Math.hypot(w[0], w[1]);
+      const cos = nv && nw ? dotP / (nv * nw) : NaN;
+      /* clamp: (v·w)/(‖v‖‖w‖) can land at 1.0000000000000002 in floating point,
+         and acos of that is NaN — a readout of "NaN°" for two identical vectors
+         is the first thing a student would meet. */
+      const theta = Number.isFinite(cos)
+        ? Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI : NaN;
+      const perp = nv > 0 && nw > 0 && Math.abs(dotP) < 1e-9;
+      const span = Math.max(2, nv, nw) * 1.3;
+      const vw = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, vw, -span, span, -span, span);
+      const X = vw.X, Y = vw.Y;
+      arrow(ctx, X(0), Y(0), X(v[0]), Y(v[1]), css("--accent"));
+      label(ctx, "v", X(v[0]) + 7, Y(v[1]) - 4, css("--accent"), "left", 12);
+      arrow(ctx, X(0), Y(0), X(w[0]), Y(w[1]), css("--green"));
+      label(ctx, "w", X(w[0]) + 7, Y(w[1]) - 4, css("--green"), "left", 12);
+      // the angle itself, drawn as an arc between the two arrows
+      if (nv > 0 && nw > 0) {
+        const a1 = Math.atan2(v[1], v[0]), a2 = Math.atan2(w[1], w[0]);
+        let delta = a2 - a1;
+        while (delta > Math.PI) delta -= 2 * Math.PI;
+        while (delta < -Math.PI) delta += 2 * Math.PI;
+        ctx.save();
+        ctx.strokeStyle = perp ? css("--red") : css("--ink-faint");
+        ctx.lineWidth = perp ? 2 : 1.4;
+        ctx.beginPath();
+        ctx.arc(X(0), Y(0), 30, -a1, -(a1 + delta), delta > 0);
+        ctx.stroke();
+        ctx.restore();
+        label(ctx, perp ? "90°" : `${fmt(theta, 0)}°`,
+          X(0) + 40 * Math.cos(a1 + delta / 2), Y(0) - 40 * Math.sin(a1 + delta / 2),
+          perp ? css("--red") : css("--ink-faint"), "center", 11);
+      }
+      return [
+        ["v · w", `${fmt(dotP, 0)}`],
+        ["‖v‖", `${fmt(nv)}`],
+        ["‖w‖", `${fmt(nw)}`],
+        ["cos θ", Number.isFinite(cos) ? `${fmt(cos, 3)}` : "undefined"],
+        ["θ", Number.isFinite(theta) ? `${fmt(theta, 1)}°` : "undefined"],
+        /* The zero vector has no direction, so it is neither perpendicular nor
+           at any angle at all — v · w = 0 there for the trivial reason, not the
+           geometric one. Reporting "angle over 90°" would teach exactly the
+           confusion the perpendicularity questions exist to catch. */
+        ["verdict", nv === 0 || nw === 0
+          ? "undefined — the zero vector has no direction"
+          : perp ? "perpendicular (v · w = 0)"
+          : dotP > 0 ? "angle under 90°" : "angle over 90°"],
+      ];
+    },
+
+    /* Ax computed both ways at once: the columns of A scaled by x's entries and
+       added (the definition), and each row of A dotted against x (the way it is
+       actually computed by hand). The two readouts must always agree — that
+       agreement is the theorem, and seeing it hold while the sliders move is
+       worth more than reading that it does. */
+    matVec(ctx, p) {
+      const a1 = [p.a11, p.a21], a2 = [p.a12, p.a22], x = [p.x1, p.x2];
+      const s1 = [x[0] * a1[0], x[0] * a1[1]], s2 = [x[1] * a2[0], x[1] * a2[1]];
+      const out = [s1[0] + s2[0], s1[1] + s2[1]];
+      const row1 = p.a11 * x[0] + p.a12 * x[1];
+      const row2 = p.a21 * x[0] + p.a22 * x[1];
+      const xs = [0, a1[0], a2[0], s1[0], out[0]], ys = [0, a1[1], a2[1], s1[1], out[1]];
+      const span = Math.max(3, ...xs.map(Math.abs), ...ys.map(Math.abs)) * 1.15;
+      const vw = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, vw, -span, span, -span, span);
+      const X = vw.X, Y = vw.Y;
+      // the columns themselves, thin: they are the fixed directions being mixed
+      arrow(ctx, X(0), Y(0), X(a1[0]), Y(a1[1]), css("--accent"), 1.8);
+      label(ctx, "a₁", X(a1[0]) + 7, Y(a1[1]) - 4, css("--accent"), "left", 11);
+      arrow(ctx, X(0), Y(0), X(a2[0]), Y(a2[1]), css("--green"), 1.8);
+      label(ctx, "a₂", X(a2[0]) + 7, Y(a2[1]) - 4, css("--green"), "left", 11);
+      // x₁a₁ then x₂a₂, tip to tail
+      line(ctx, X(0), Y(0), X(s1[0]), Y(s1[1]), css("--accent"), 2.2, [5, 4]);
+      line(ctx, X(s1[0]), Y(s1[1]), X(out[0]), Y(out[1]), css("--green"), 2.2, [5, 4]);
+      arrow(ctx, X(0), Y(0), X(out[0]), Y(out[1]), css("--red"), 3);
+      dot(ctx, vw, out[0], out[1], css("--red"));
+      label(ctx, "Ax", X(out[0]) + 8, Y(out[1]) + 14, css("--red"), "left", 12);
+      return [
+        ["x₁a₁", `(${fmt(s1[0], 0)}, ${fmt(s1[1], 0)})`],
+        ["x₂a₂", `(${fmt(s2[0], 0)}, ${fmt(s2[1], 0)})`],
+        ["Ax by columns", `(${fmt(out[0], 0)}, ${fmt(out[1], 0)})`],
+        ["row 1 · x", `${fmt(row1, 0)}`],
+        ["row 2 · x", `${fmt(row2, 0)}`],
+        /* Compared with a tolerance, not with ===: the two routes multiply the
+           same numbers in a different order, and a slider with a fractional
+           step would make them differ in the last bit — printing "—" under a
+           readout whose whole job is to say they never disagree. */
+        ["the two agree",
+          (Math.abs(row1 - out[0]) < 1e-9 && Math.abs(row2 - out[1]) < 1e-9)
+            ? "yes, always" : "—"],
+      ];
+    },
+
+    /* The two pictures of Ax = b, drawn at the same time on one canvas: two
+       lines looking for a meeting point (left) and two columns being mixed to
+       reach b (right). The point of showing them together is that they agree
+       about how many solutions there are and disagree about nothing — including
+       in the degenerate cases, where the left picture goes parallel at the same
+       moment the right one collapses onto a line. */
+    rowColPicture(ctx, p) {
+      const A = [[p.a11, p.a12], [p.a21, p.a22]], b = [p.b1, p.b2];
+      const det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
+      const singular = Math.abs(det) < 1e-9;
+      // Cramer, only when it is legal; otherwise the system has no unique answer.
+      const x = singular ? null
+        : [(b[0] * A[1][1] - A[0][1] * b[1]) / det, (A[0][0] * b[1] - b[0] * A[1][0]) / det];
+      /* "Consistent but not unique" is a real third case and it is the one a
+         student mis-reads: parallel lines that are the SAME line. b must then be
+         a multiple of the columns' shared direction. */
+      const consistent = !singular ||
+        Math.abs(A[0][0] * b[1] - A[1][0] * b[0]) < 1e-9 &&
+        Math.abs(A[0][1] * b[1] - A[1][1] * b[0]) < 1e-9;
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const half = W / 2;
+      const span = Math.max(3, ...A.flat().map(Math.abs), ...b.map(Math.abs)) * 1.2;
+      const lineC = css("--line"), faint = css("--ink-faint");
+
+      // ---- left: the row picture -------------------------------------------
+      const L = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span,
+                            pad: 18, box: { x: 0, y: 0, w: half, h: H } });
+      grid(ctx, L, -span, span, -span, span);
+      // a row a x + b y = c, drawn by walking it to the edges of the window
+      const drawRow = (r, c, colour) => {
+        const [ax, ay] = r;
+        if (Math.abs(ax) < 1e-12 && Math.abs(ay) < 1e-12) return;   // 0 = c: no line
+        const pts = [];
+        if (Math.abs(ay) > 1e-12) {
+          pts.push([-span, (c - ax * -span) / ay], [span, (c - ax * span) / ay]);
+        } else {
+          pts.push([c / ax, -span], [c / ax, span]);
+        }
+        line(ctx, L.X(pts[0][0]), L.Y(pts[0][1]), L.X(pts[1][0]), L.Y(pts[1][1]), colour, 2);
+      };
+      drawRow(A[0], b[0], css("--accent"));
+      drawRow(A[1], b[1], css("--green"));
+      if (x) dot(ctx, L, x[0], x[1], css("--red"), true, 5);
+      label(ctx, "row picture", L.X(0), 14, faint, "center", 11);
+
+      // ---- right: the column picture ---------------------------------------
+      const R = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span,
+                            pad: 18, box: { x: half, y: 0, w: half, h: H } });
+      grid(ctx, R, -span, span, -span, span);
+      const c1 = [A[0][0], A[1][0]], c2 = [A[0][1], A[1][1]];
+      arrow(ctx, R.X(0), R.Y(0), R.X(c1[0]), R.Y(c1[1]), css("--accent"), 1.8);
+      arrow(ctx, R.X(0), R.Y(0), R.X(c2[0]), R.Y(c2[1]), css("--green"), 1.8);
+      if (x) {   // the actual mixture that reaches b, drawn tip-to-tail
+        const s1 = [x[0] * c1[0], x[0] * c1[1]];
+        line(ctx, R.X(0), R.Y(0), R.X(s1[0]), R.Y(s1[1]), css("--accent"), 2, [5, 4]);
+        line(ctx, R.X(s1[0]), R.Y(s1[1]), R.X(b[0]), R.Y(b[1]), css("--green"), 2, [5, 4]);
+      }
+      arrow(ctx, R.X(0), R.Y(0), R.X(b[0]), R.Y(b[1]), css("--red"), 3);
+      label(ctx, "b", R.X(b[0]) + 8, R.Y(b[1]) - 4, css("--red"), "left", 12);
+      label(ctx, "column picture", R.X(0), 14, faint, "center", 11);
+      line(ctx, half, 8, half, H - 8, lineC, 1, [3, 5]);
+
+      return [
+        ["det A", `${fmt(det, 0)}`],
+        ["rows", singular ? "parallel lines" : "two lines crossing"],
+        ["columns", singular ? "both on one line" : "two directions"],
+        ["solutions", singular ? (consistent ? "infinitely many" : "none") : "exactly one"],
+        ["x", x ? `(${fmt(x[0])}, ${fmt(x[1])})` : "—"],
+      ];
+    },
+
+    /* Forward elimination, one step at a time. The slider is the step number, so
+       a reader can stop between two steps and read off the multiplier that is
+       about to be used — which is the number this course's own mistake list says
+       students lose marks on, and the number that later becomes an entry of L. */
+    elimSteps(ctx, p) {
+      const M = [[p.a11, p.a12, p.a13], [p.a21, p.a22, p.a23], [p.a31, p.a32, p.a33]]
+        .map(r => r.slice());
+      const step = Math.round(p.step);
+      // The three clearing steps, in the order elimination performs them.
+      const order = [[1, 0], [2, 0], [2, 1]];
+      const L = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+      let done = 0, current = null, zeroPivot = false;
+      for (let k = 0; k < order.length && done < step; k++) {
+        const [i, j] = order[k];
+        const pivot = M[j][j];
+        if (Math.abs(pivot) < 1e-12) { zeroPivot = true; break; }
+        const mult = M[i][j] / pivot;
+        L[i][j] = mult;
+        for (let c = 0; c < 3; c++) M[i][c] -= mult * M[j][c];
+        done++;
+        current = { i, j, mult, pivot };
+      }
+      // The next step's multiplier, so the reader can predict it before moving on
+      let next = null;
+      if (done < order.length) {
+        const [i, j] = order[done];
+        const pivot = M[j][j];
+        next = Math.abs(pivot) < 1e-12 ? null : { i, j, pivot, mult: M[i][j] / pivot };
+      }
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const cw = Math.min(46, (W - 60) / 4), rh = Math.min(30, (H - 70) / 4);
+      const x0 = W / 2 - 1.6 * cw, y0 = 46;
+      label(ctx, done === 0 ? "A (no steps taken yet)"
+        : done === order.length ? "U — forward elimination complete"
+        : `after ${done} step${done > 1 ? "s" : ""}`, W / 2, 22, css("--ink"), "center", 12);
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const isPivot = current && r === current.j && c === current.j;
+          const justCleared = current && r === current.i && c === current.j;
+          const colour = isPivot ? css("--accent") : justCleared ? css("--red") : css("--ink");
+          label(ctx, fmt(M[r][c], Number.isInteger(M[r][c]) ? 0 : 2),
+                x0 + c * cw + cw / 2, y0 + r * rh + 14, colour, "center", 13);
+        }
+      }
+      // bracket edges, so the block of numbers reads as a matrix
+      const bx0 = x0 - 8, bx1 = x0 + 3 * cw + 8, by0 = y0 - 4, by1 = y0 + 3 * rh + 4;
+      const brk = css("--ink-faint");
+      line(ctx, bx0, by0, bx0, by1, brk, 1.5); line(ctx, bx0, by0, bx0 + 7, by0, brk, 1.5);
+      line(ctx, bx0, by1, bx0 + 7, by1, brk, 1.5);
+      line(ctx, bx1, by0, bx1, by1, brk, 1.5); line(ctx, bx1, by0, bx1 - 7, by0, brk, 1.5);
+      line(ctx, bx1, by1, bx1 - 7, by1, brk, 1.5);
+      if (current) {
+        label(ctx, `row ${current.i + 1} ← row ${current.i + 1} − (${fmt(current.mult)})·row ${current.j + 1}`,
+              W / 2, by1 + 22, css("--ink-soft"), "center", 11);
+      }
+      if (zeroPivot) {
+        label(ctx, "zero pivot — this column needs a row exchange",
+              W / 2, by1 + 40, css("--red"), "center", 11);
+      }
+      const lStr = `[1 0 0; ${fmt(L[1][0])} 1 0; ${fmt(L[2][0])} ${fmt(L[2][1])} 1]`;
+      return [
+        ["steps taken", `${done} of 3`],
+        ["pivot in use", current ? `${fmt(current.pivot)} (row ${current.j + 1})` : "—"],
+        ["multiplier used", current ? `${fmt(current.mult)}` : "—"],
+        ["next multiplier", next ? `${fmt(next.mult)}` : (zeroPivot ? "blocked: zero pivot" : "—")],
+        ["L so far", lStr],
+        ["pivots on the diagonal", `${fmt(M[0][0])}, ${fmt(M[1][1])}, ${fmt(M[2][2])}`],
+      ];
+    },
+
+    /* AB against BA on the same unit square. Order is the thing this course's
+       mistake list puts third, and a picture makes the asymmetry impossible to
+       argue with — while the determinants stay equal, which is the part students
+       do not expect. */
+    abVsBa(ctx, p) {
+      const A = [[p.a11, p.a12], [p.a21, p.a22]], B = [[p.b11, p.b12], [p.b21, p.b22]];
+      const mul = (X, Y) => [
+        [X[0][0] * Y[0][0] + X[0][1] * Y[1][0], X[0][0] * Y[0][1] + X[0][1] * Y[1][1]],
+        [X[1][0] * Y[0][0] + X[1][1] * Y[1][0], X[1][0] * Y[0][1] + X[1][1] * Y[1][1]],
+      ];
+      const det = X => X[0][0] * X[1][1] - X[0][1] * X[1][0];
+      const AB = mul(A, B), BA = mul(B, A);
+      const same = [0, 1].every(i => [0, 1].every(j => Math.abs(AB[i][j] - BA[i][j]) < 1e-9));
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const span = Math.max(2, ...AB.flat().map(Math.abs), ...BA.flat().map(Math.abs)) * 1.25;
+      const shape = (M, v, colour, name, box) => {
+        grid(ctx, v, -span, span, -span, span);
+        const c1 = [M[0][0], M[1][0]], c2 = [M[0][1], M[1][1]];
+        const pts = [[0, 0], c1, [c1[0] + c2[0], c1[1] + c2[1]], c2];
+        ctx.save();
+        ctx.beginPath();
+        pts.forEach((q, i) => i ? ctx.lineTo(v.X(q[0]), v.Y(q[1])) : ctx.moveTo(v.X(q[0]), v.Y(q[1])));
+        ctx.closePath();
+        ctx.fillStyle = colour; ctx.globalAlpha = 0.18; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = colour; ctx.lineWidth = 2; ctx.stroke();
+        ctx.restore();
+        arrow(ctx, v.X(0), v.Y(0), v.X(c1[0]), v.Y(c1[1]), colour, 1.8);
+        arrow(ctx, v.X(0), v.Y(0), v.X(c2[0]), v.Y(c2[1]), colour, 1.8);
+        label(ctx, name, box.x + box.w / 2, 14, colour, "center", 12);
+      };
+      const boxL = { x: 0, y: 0, w: W / 2, h: H }, boxR = { x: W / 2, y: 0, w: W / 2, h: H };
+      shape(AB, view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span, pad: 18, box: boxL }),
+            css("--accent"), "AB (unit square)", boxL);
+      shape(BA, view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span, pad: 18, box: boxR }),
+            css("--green"), "BA (unit square)", boxR);
+      line(ctx, W / 2, 8, W / 2, H - 8, css("--line"), 1, [3, 5]);
+      /* Trace as well as determinant, because for a 2×2 the pair (trace,
+         determinant) IS the characteristic polynomial: showing both equal for AB
+         and BA is Theorem 47 — same eigenvalues, different matrices — visible in
+         the readouts rather than asserted in the text. */
+      const tr = X => X[0][0] + X[1][1];
+      /* det(AB) and det(BA) stay on their own rows: a module's `watch` text
+         quotes readout labels by name, so merging two rows into one silently
+         breaks sentences that are already written against them. */
+      return [
+        ["AB", `[${fmt(AB[0][0], 0)} ${fmt(AB[0][1], 0)}; ${fmt(AB[1][0], 0)} ${fmt(AB[1][1], 0)}]`],
+        ["BA", `[${fmt(BA[0][0], 0)} ${fmt(BA[0][1], 0)}; ${fmt(BA[1][0], 0)} ${fmt(BA[1][1], 0)}]`],
+        ["AB = BA?", same ? "equal here" : "different"],
+        ["det A · det B", `${fmt(det(A) * det(B), 0)}`],
+        ["det(AB)", `${fmt(det(AB), 0)}`],
+        ["det(BA)", `${fmt(det(BA), 0)}`],
+        // trace and determinant together ARE the characteristic polynomial of a
+        // 2×2, so equal pairs here mean equal eigenvalues — Theorem 47, visible.
+        ["trace(AB)", `${fmt(tr(AB), 0)}`],
+        ["trace(BA)", `${fmt(tr(BA), 0)}`],
+      ];
+    },
+
+    /* The determinant as signed area, and what one row operation does to it.
+       `op` picks the operation, `amount` its size: this is the properties list of
+       Lesson 3.1 turned into something a reader can watch, including the sign
+       flip on a swap, which is the second entry on the course's mistake list. */
+    detArea(ctx, p) {
+      const A = [[p.a11, p.a12], [p.a21, p.a22]];
+      const op = Math.round(p.op), amt = p.amount;
+      const det = X => X[0][0] * X[1][1] - X[0][1] * X[1][0];
+      const before = det(A);
+      let after = A.map(r => r.slice()), name = "no operation";
+      if (op === 1) { after = [A[1].slice(), A[0].slice()]; name = "swap the two rows"; }
+      else if (op === 2) { after = [A[0].map(v => v * amt), A[1].slice()];
+                           name = `multiply row 1 by ${fmt(amt)}`; }
+      else if (op === 3) { after = [A[0].map((v, i) => v + amt * A[1][i]), A[1].slice()];
+                           name = `add ${fmt(amt)} × row 2 to row 1`; }
+      const d2 = det(after);
+      const span = Math.max(2, ...A.flat().map(Math.abs), ...after.flat().map(Math.abs)) * 1.25;
+      const v = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, v, -span, span, -span, span);
+      /* Rows, not columns: every row operation acts on rows, and det is the area
+         of the parallelogram they span (the same number either way, which is
+         Theorem 24 — worth knowing but not worth confusing the picture over). */
+      const para = (M, colour, dash) => {
+        const r1 = M[0], r2 = M[1];
+        const pts = [[0, 0], r1, [r1[0] + r2[0], r1[1] + r2[1]], r2];
+        ctx.save();
+        ctx.beginPath();
+        pts.forEach((q, i) => i ? ctx.lineTo(v.X(q[0]), v.Y(q[1])) : ctx.moveTo(v.X(q[0]), v.Y(q[1])));
+        ctx.closePath();
+        if (!dash) { ctx.fillStyle = colour; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1; }
+        ctx.strokeStyle = colour; ctx.lineWidth = 2;
+        if (dash) ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        ctx.restore();
+      };
+      para(A, css("--ink-faint"), true);
+      para(after, d2 < 0 ? css("--red") : css("--accent"), false);
+      arrow(ctx, v.X(0), v.Y(0), v.X(after[0][0]), v.Y(after[0][1]),
+            d2 < 0 ? css("--red") : css("--accent"), 2);
+      arrow(ctx, v.X(0), v.Y(0), v.X(after[1][0]), v.Y(after[1][1]), css("--green"), 2);
+      label(ctx, name, ctx.canvas.clientWidth / 2, 16, css("--ink-soft"), "center", 11);
+      const ratio = Math.abs(before) < 1e-12 ? null : d2 / before;
+      return [
+        ["det before", `${fmt(before, 0)}`],
+        ["det after", `${fmt(d2, 0)}`],
+        ["what changed", ratio === null ? "—" : `× ${fmt(ratio)}`],
+        ["area (|det|)", `${fmt(Math.abs(d2))}`],
+        ["orientation", Math.abs(d2) < 1e-9 ? "flattened: det = 0"
+          : d2 > 0 ? "kept" : "reversed (sign flipped)"],
+        ["invertible?", Math.abs(d2) < 1e-9 ? "no — singular" : "yes"],
+      ];
+    },
+
+    /* Three vectors in the plane. Two of them can already reach everything, so
+       the third is always dependent — and the readout gives the actual dependence
+       relation, which is what "find a maximal independent subset" (Model Test,
+       problem 4) is asking you to produce. */
+    rankSpan(ctx, p) {
+      const v = [p.v1, p.v2], w = [p.w1, p.w2], u = [p.u1, p.u2];
+      const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
+      const zero = a => Math.hypot(a[0], a[1]) < 1e-12;
+      const pair = Math.abs(cross(v, w)) > 1e-9;
+      const rank = pair ? 2
+        : (zero(v) && zero(w) && zero(u)) ? 0
+        : (Math.abs(cross(v, u)) > 1e-9 || Math.abs(cross(w, u)) > 1e-9) ? 2 : 1;
+      /* u = αv + βw whenever v and w are independent — solved by Cramer, which is
+         exactly how a special solution is read off in Lesson 4.4a. */
+      const D = cross(v, w);
+      const alpha = pair ? cross(u, w) / D : null;
+      const beta = pair ? cross(v, u) / D : null;
+      /* When v and w are collinear and both nonzero, w = k·v — that is the
+         dependence the panel should name, and it is the only one available. */
+      const wOverV = !pair && !zero(v)
+        ? (w[0] * v[0] + w[1] * v[1]) / (v[0] * v[0] + v[1] * v[1]) : null;
+      const span = Math.max(2, ...[v, w, u].flat().map(Math.abs)) * 1.3;
+      const vw = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, vw, -span, span, -span, span);
+      const far = span * 3;
+      if (!pair && !zero(v)) {         // everything is trapped on one line
+        const n = Math.hypot(v[0], v[1]);
+        line(ctx, vw.X(-far * v[0] / n), vw.Y(-far * v[1] / n),
+                  vw.X(far * v[0] / n), vw.Y(far * v[1] / n), css("--red"), 1, [3, 4]);
+      }
+      arrow(ctx, vw.X(0), vw.Y(0), vw.X(v[0]), vw.Y(v[1]), css("--accent"));
+      label(ctx, "v", vw.X(v[0]) + 7, vw.Y(v[1]) - 4, css("--accent"), "left", 12);
+      arrow(ctx, vw.X(0), vw.Y(0), vw.X(w[0]), vw.Y(w[1]), css("--green"));
+      label(ctx, "w", vw.X(w[0]) + 7, vw.Y(w[1]) - 4, css("--green"), "left", 12);
+      arrow(ctx, vw.X(0), vw.Y(0), vw.X(u[0]), vw.Y(u[1]), css("--red"), 3);
+      label(ctx, "u", vw.X(u[0]) + 7, vw.Y(u[1]) - 4, css("--red"), "left", 12);
+      if (pair) {                       // u drawn as its own combination of v and w
+        const av = [alpha * v[0], alpha * v[1]];
+        line(ctx, vw.X(0), vw.Y(0), vw.X(av[0]), vw.Y(av[1]), css("--accent"), 1.5, [4, 4]);
+        line(ctx, vw.X(av[0]), vw.Y(av[1]), vw.X(u[0]), vw.Y(u[1]), css("--green"), 1.5, [4, 4]);
+      }
+      return [
+        ["rank of [v w u]", `${rank}`],
+        ["v, w independent?", pair ? "yes" : "no — same line"],
+        ["u as a combination", pair ? `${fmt(alpha)}·v + ${fmt(beta)}·w` : "—"],
+        /* Three vectors in the plane are always dependent, so this row always has
+           something true to say — but only the v,w-independent case was ever
+           computed. When v and w are collinear the row printed "every pair is
+           dependent" beside a rank of 2, which is false and reachable from the
+           trainer's own second challenge (v=(1,2), w=(2,4), u=(5,5)). The
+           relation is now read off whichever pair is actually dependent. */
+        ["dependence relation", pair
+          ? `${fmt(alpha)}·v + ${fmt(beta)}·w − u = 0`
+          : rank === 0 ? "all three are 0, so any coefficients at all"
+          : !zero(v) && !zero(w) ? `${fmt(wOverV)}·v − w = 0`
+          : zero(v) ? "1·v = 0 — v is the zero vector"
+          : "1·w = 0 — w is the zero vector"],
+        ["maximal independent subset", rank === 2 ? "any 2 that are not parallel"
+          : rank === 1 ? "any single nonzero vector" : "empty"],
+        ["free variables in Ax = 0", `${3 - rank}`],
+      ];
+    },
+
+    /* The solution set of Ax = b drawn in the plane of the UNKNOWNS, which is
+       the picture the complete-solution method is about and the one no other
+       scene shows: a point when A is invertible, a whole line x_p + t·s when it
+       is singular and b is consistent, and nothing at all when it is not. The
+       three cases are one slider apart, which is what makes "how many solutions"
+       stop being a memorised table. */
+    solutionSet(ctx, p) {
+      const A = [[p.a11, p.a12], [p.a21, p.a22]], b = [p.b1, p.b2];
+      const det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
+      const singular = Math.abs(det) < 1e-9;
+      const rank = singular
+        ? (A.flat().every(v => Math.abs(v) < 1e-12) ? 0 : 1)
+        : 2;
+      const free = 2 - rank;
+      let particular = null, nullDir = null, verdict;
+      if (!singular) {
+        particular = [(b[0] * A[1][1] - A[0][1] * b[1]) / det,
+                      (A[0][0] * b[1] - b[0] * A[1][0]) / det];
+        verdict = "exactly one";
+      } else if (rank === 1) {
+        // one independent row; take it, and read the nullspace direction off it
+        const r = Math.hypot(A[0][0], A[0][1]) > 1e-12 ? A[0] : A[1];
+        const rhs = Math.hypot(A[0][0], A[0][1]) > 1e-12 ? b[0] : b[1];
+        const other = r === A[0] ? A[1] : A[0], orhs = r === A[0] ? b[1] : b[0];
+        /* Consistency: the dependent row must carry the same multiple of the
+           right-hand side that it carries of the row. This is the check Final
+           2024 III.1 turns into "find the c that makes it consistent". */
+        const k = Math.abs(r[0]) > 1e-12 ? other[0] / r[0]
+                : Math.abs(r[1]) > 1e-12 ? other[1] / r[1] : 0;
+        const consistent = Math.abs(orhs - k * rhs) < 1e-9;
+        nullDir = [-r[1], r[0]];                       // r · nullDir = 0
+        if (consistent) {
+          const n2 = r[0] * r[0] + r[1] * r[1];
+          particular = [r[0] * rhs / n2, r[1] * rhs / n2];   // the shortest one
+          verdict = "a whole line";
+        } else {
+          verdict = "none";
+        }
+      } else {
+        /* A = 0. Its nullspace is the whole plane, not a line and certainly not
+           {0}: with b = 0 every x solves it, with b ≠ 0 none does. Both used to
+           be described by rows written for the rank-1 case — a single nullspace
+           "direction" of (1,0) beside "free variables 2", and "only 0" beside
+           the same 2. The readouts below special-case it instead. */
+        verdict = b.every(v => Math.abs(v) < 1e-9) ? "every x in the plane" : "none";
+        if (verdict !== "none") particular = [0, 0];
+      }
+      const span = Math.max(3, ...(particular || [0, 0]).map(Math.abs), ...b.map(Math.abs)) * 1.3;
+      const v = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, v, -span, span, -span, span);
+      label(ctx, "the plane of (x₁, x₂)", ctx.canvas.clientWidth / 2, 14,
+            css("--ink-faint"), "center", 11);
+      if (particular && nullDir) {
+        const n = Math.hypot(nullDir[0], nullDir[1]) || 1;
+        const far = span * 3;
+        line(ctx, v.X(particular[0] - far * nullDir[0] / n), v.Y(particular[1] - far * nullDir[1] / n),
+                  v.X(particular[0] + far * nullDir[0] / n), v.Y(particular[1] + far * nullDir[1] / n),
+                  css("--green"), 2.4);
+        // the nullspace itself, through the origin — the line the solutions are a shift of
+        line(ctx, v.X(-far * nullDir[0] / n), v.Y(-far * nullDir[1] / n),
+                  v.X(far * nullDir[0] / n), v.Y(far * nullDir[1] / n), css("--line"), 1.4, [4, 4]);
+        arrow(ctx, v.X(0), v.Y(0), v.X(particular[0]), v.Y(particular[1]), css("--accent"), 2.4);
+        /* The two labels sit on the same point unless they are pushed apart: xₚ
+           goes on the far side of its own arrow, the set's name goes well along
+           the line. They overlapped exactly at the default parameters. */
+        const away = Math.hypot(particular[0], particular[1]) || 1;
+        label(ctx, "xₚ", v.X(particular[0]) - 14 * particular[0] / away,
+              v.Y(particular[1]) - 14 * particular[1] / away + 4, css("--accent"), "center", 12);
+        const along = span * 0.55;
+        label(ctx, "xₚ + N(A)", v.X(particular[0] + along * nullDir[0] / n),
+              v.Y(particular[1] + along * nullDir[1] / n) - 8, css("--green"), "center", 11);
+      } else if (particular) {
+        dot(ctx, v, particular[0], particular[1], css("--red"), true, 5.5);
+        label(ctx, "the only solution", v.X(particular[0]) + 10, v.Y(particular[1]) - 6,
+              css("--red"), "left", 12);
+      } else {
+        label(ctx, "no x satisfies both rows", ctx.canvas.clientWidth / 2,
+              ctx.canvas.clientHeight / 2, css("--red"), "center", 13);
+      }
+      return [
+        ["rank r", `${rank}`],
+        ["free variables (n − r)", `${free}`],
+        ["solutions", verdict],
+        ["particular xₚ", particular ? `(${fmt(particular[0])}, ${fmt(particular[1])})` : "—"],
+        ["nullspace direction", rank === 0 ? "every direction — N(A) is the whole plane"
+          : nullDir ? `(${fmt(nullDir[0], 0)}, ${fmt(nullDir[1], 0)})` : "only 0"],
+        ["complete solution", rank === 0
+            ? (particular ? "every x — two free parameters" : "the set is empty")
+          : particular && nullDir ? "xₚ + t·s, one free t"
+          : particular ? "xₚ alone" : "the set is empty"],
+      ];
+    },
+
+    /* Turn v around the circle and watch Av follow. At an eigenvector the two
+       arrows line up, and the readout names λ — which is the definition doing its
+       own work, before the characteristic polynomial appears. */
+    eigenVectors(ctx, p) {
+      const A = [[p.a11, p.a12], [p.a21, p.a22]];
+      const t = p.theta * Math.PI / 180;
+      const v = [Math.cos(t), Math.sin(t)];
+      const Av = [A[0][0] * v[0] + A[0][1] * v[1], A[1][0] * v[0] + A[1][1] * v[1]];
+      const crossVal = v[0] * Av[1] - v[1] * Av[0];
+      /* Av = 0 is the eigenvector equation with λ = 0, not a degenerate case to
+         exclude: v spans the nullspace of a singular A. Guarding it away made
+         the readout answer "no" on a direction the scene was simultaneously
+         drawing as an eigendirection. */
+      const parallel = Math.abs(crossVal) < 5e-3;
+      const lambda = parallel ? (v[0] * Av[0] + v[1] * Av[1]) : null;   // v is a unit vector
+      const tr = A[0][0] + A[1][1], det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
+      const disc = tr * tr - 4 * det;
+      const roots = disc >= 0
+        ? [(tr + Math.sqrt(disc)) / 2, (tr - Math.sqrt(disc)) / 2] : null;
+      const span = Math.max(1.6, Math.hypot(...Av)) * 1.3;
+      const vw = view(ctx, { xmin: -span, xmax: span, ymin: -span, ymax: span });
+      grid(ctx, vw, -span, span, -span, span);
+      // the unit circle v runs around
+      ctx.save();
+      ctx.strokeStyle = css("--line"); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(vw.X(0), vw.Y(0), vw.s, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      /* The eigenvector directions themselves, when they are real: drawing them
+         turns "hunt for the angle" into "check the two lines the algebra
+         predicted", which is the same move the lesson makes. */
+      if (roots) {
+        for (const lam of roots) {
+          // (A − λI)x = 0 → a direction; take whichever row is nonzero
+          const r1 = [A[0][0] - lam, A[0][1]], r2 = [A[1][0], A[1][1] - lam];
+          const d = Math.hypot(r1[0], r1[1]) > 1e-9 ? [-r1[1], r1[0]]
+                  : Math.hypot(r2[0], r2[1]) > 1e-9 ? [-r2[1], r2[0]] : null;
+          if (!d) continue;
+          const n = Math.hypot(d[0], d[1]);
+          line(ctx, vw.X(-span * d[0] / n), vw.Y(-span * d[1] / n),
+                    vw.X(span * d[0] / n), vw.Y(span * d[1] / n), css("--amber"), 1, [4, 4]);
+        }
+      }
+      arrow(ctx, vw.X(0), vw.Y(0), vw.X(v[0]), vw.Y(v[1]), css("--accent"));
+      label(ctx, "v", vw.X(v[0]) + 8, vw.Y(v[1]) - 4, css("--accent"), "left", 12);
+      arrow(ctx, vw.X(0), vw.Y(0), vw.X(Av[0]), vw.Y(Av[1]),
+            parallel ? css("--red") : css("--green"), 3);
+      label(ctx, "Av", vw.X(Av[0]) + 8, vw.Y(Av[1]) - 4,
+            parallel ? css("--red") : css("--green"), "left", 12);
+      if (parallel) {
+        label(ctx, `eigenvector · λ = ${fmt(lambda)}`, ctx.canvas.clientWidth / 2, 16,
+              css("--red"), "center", 12);
+      }
+      return [
+        ["v", `(${fmt(v[0])}, ${fmt(v[1])})`],
+        ["Av", `(${fmt(Av[0])}, ${fmt(Av[1])})`],
+        ["Av parallel to v?", parallel ? "yes — this is an eigenvector" : "no"],
+        ["λ here", parallel ? `${fmt(lambda)}` : "—"],
+        ["trace, det", `${fmt(tr, 0)}, ${fmt(det, 0)}`],
+        ["eigenvalues of A", roots ? `${fmt(roots[0])}, ${fmt(roots[1])}` : "complex pair"],
+      ];
+    },
+  };
+
+  /* ---------- rendering ---------------------------------------------------- */
+  function paint(canvas, sim, values) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const scene = SCENES[sim.type];
+    if (!scene) { label(ctx, `unknown scene "${sim.type}"`, 12, 20, css("--red")); return []; }
+    return scene(ctx, values) || [];
+  }
+
+  /* Two kinds of control. A slider is for a quantity being pushed towards a
+     limit — h → 0, n → ∞ — which is most of what a trainer does. A `choice` is
+     for a parameter with no in-between: the left, right and midpoint rules are
+     three rules, not three points on a scale, and a slider reading "1" where
+     the student has to read "right edge" mislabels the very thing being taught.
+     Values stay numeric so a challenge can check one the same way it checks a
+     slider. */
+  function controls(sim, values) {
+    return sim.params.map(prm => {
+      if (prm.type === "choice") {
+        const opts = Array.isArray(prm.options) ? prm.options : [];
+        return `
+      <div class="sim-ctl sim-ctl-choice" role="group" aria-label="${esc(prm.label)}">
+        <span class="sim-ctl-label">${esc(prm.label)}</span>
+        <div class="sim-choice" id="sim-${esc(sim.id)}-${esc(prm.key)}">
+          ${opts.map(o => `<button type="button" data-value="${numAttr(o.value)}"
+                  class="${Number(o.value) === Number(values[prm.key]) ? "active" : ""}"
+                  aria-pressed="${Number(o.value) === Number(values[prm.key])}"
+            >${esc(o.label)}</button>`).join("")}
+        </div>
+      </div>`;
+      }
+      return `
+      <label class="sim-ctl">
+        <span class="sim-ctl-label">${esc(prm.label)}</span>
+        <output id="out-${esc(sim.id)}-${esc(prm.key)}">${values[prm.key]}${esc(prm.unit || "")}</output>
+        <input type="range" id="sim-${esc(sim.id)}-${esc(prm.key)}"
+               min="${numAttr(prm.min)}" max="${numAttr(prm.max, 1)}"
+               step="${numAttr(prm.step ?? 1, 1)}"
+               value="${numAttr(values[prm.key])}" aria-label="${esc(prm.label)}">
+      </label>`;
+    }).join("");
+  }
+
+  /* A challenge is the only part of a trainer that can be got wrong, which is
+     why it is also the part that is paid for: "set the angle that maximises the
+     range" is a question; a slider is not. */
+  /* `check` is one {param, target, tol}, or an array of them when the prompt
+     asks for several sliders at once. A prompt that sets four sliders and is
+     graded on one is worse than no grading: the tick appears, the explanation
+     opens, and it describes a screen the student is not looking at. Every
+     clause has to hold. */
+  function challengeState(sim, values) {
+    const holds = c => Math.abs(values[c.param] - c.target) <= (c.tol ?? 1);
+    return (sim.challenges || []).map(c =>
+      Array.isArray(c.check) ? c.check.every(holds) : holds(c.check));
+  }
+
+  function render(host, sim) {
+    const values = {};
+    for (const prm of sim.params) {
+      values[prm.key] = prm.type === "choice"
+        ? Number(prm.value ?? (prm.options || [{}])[0].value ?? 0)
+        : prm.value ?? prm.min;
+    }
+
+    host.innerHTML = `
+      <section class="sim-card" id="sim-card-${esc(sim.id)}">
+        <h3 class="sim-title">${esc(sim.title)}</h3>
+        ${sim.intro ? `<p class="sim-intro">${prose(sim.intro)}</p>` : ""}
+        <div class="sim-stage"><canvas class="sim-canvas" aria-label="${esc(sim.title)} diagram"></canvas></div>
+        <div class="sim-controls">${controls(sim, values)}</div>
+        <dl class="sim-readouts"></dl>
+        ${(sim.watch || []).length ? `<ul class="sim-watch">${sim.watch.map(w => `<li>${prose(w)}</li>`).join("")}</ul>` : ""}
+        ${(sim.challenges || []).length ? `<div class="sim-challenges">${
+          sim.challenges.map((c, i) => `<div class="sim-challenge" data-i="${i}">
+            <span class="sim-chal-mark" aria-hidden="true">○</span>
+            <div><p class="sim-chal-prompt">${prose(c.prompt)}</p>
+            <p class="sim-chal-explain" hidden>${prose(c.explain || "")}</p></div>
+          </div>`).join("")}</div>` : ""}
+        ${sim.review ? `<p class="sim-review">Re-read <a href="#/${esc(sim.module)}/learn" data-review="${esc(sim.review)}">§${esc(sim.review)}</a></p>` : ""}
+      </section>`;
+
+    const canvas = $(".sim-canvas", host);
+    const dl = $(".sim-readouts", host);
+
+    function refresh() {
+      const readouts = paint(canvas, sim, values);
+      dl.innerHTML = readouts.map(([k, v]) =>
+        `<div class="sim-ro"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+      const done = challengeState(sim, values);
+      host.querySelectorAll(".sim-challenge").forEach((el, i) => {
+        el.classList.toggle("done", !!done[i]);
+        const mark = $(".sim-chal-mark", el), exp = $(".sim-chal-explain", el);
+        if (mark) mark.textContent = done[i] ? "✓" : "○";
+        if (exp) exp.hidden = !done[i];
+      });
+    }
+
+    for (const prm of sim.params) {
+      const el = $(`#sim-${CSS.escape(sim.id)}-${CSS.escape(prm.key)}`, host);
+      if (!el) continue;
+      if (prm.type === "choice") {
+        el.addEventListener("click", ev => {
+          const btn = ev.target.closest("button[data-value]");
+          if (!btn) return;
+          values[prm.key] = Number(btn.dataset.value);
+          el.querySelectorAll("button").forEach(b => {
+            const on = b === btn;
+            b.classList.toggle("active", on);
+            b.setAttribute("aria-pressed", String(on));
+          });
+          refresh();
+        });
+        continue;
+      }
+      const out = $(`#out-${CSS.escape(sim.id)}-${CSS.escape(prm.key)}`, host);
+      el.addEventListener("input", () => {
+        values[prm.key] = clamp(parseFloat(el.value), prm.min, prm.max);
+        if (out) out.textContent = `${values[prm.key]}${prm.unit || ""}`;
+        refresh();
+      });
+    }
+
+    // A canvas sized by CSS has no intrinsic pixels until layout has happened,
+    // and it has to be repainted whenever the box changes — rotating a phone is
+    // the ordinary case, and the first paint of a hidden tab is the sneaky one.
+    const ro = new ResizeObserver(() => refresh());
+    ro.observe(canvas);
+    refresh();
+    return () => ro.disconnect();
+  }
+
+  /* `scenes` is exported so the numbers a scene reports can be tested without a
+     browser — tools/sims-scenes.test.mjs runs every one of them against a stub
+     canvas. A trainer that prints a wrong readout teaches a wrong fact with more
+     authority than prose does, and no gate reads these numbers. */
+  /* challengeState is exported for the gate, not for the page: grading is the
+     one part of a trainer a student can be told they got right, so it needs a
+     test that runs on every commit like the scenes have. */
+  return { render, types: () => Object.keys(SCENES), scenes: SCENES, challengeState };
+})();

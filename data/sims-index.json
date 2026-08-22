@@ -1,0 +1,20 @@
+[
+  {
+    "id": "interval-three-ways",
+    "module": "ch01",
+    "title": "One set, three notations",
+    "free": true
+  },
+  {
+    "id": "absolute-value-split",
+    "module": "ch01",
+    "title": "Why less-than gives one interval and greater-than gives two",
+    "free": true
+  },
+  {
+    "id": "squaring-invents-roots",
+    "module": "ch01",
+    "title": "What squaring does to a radical equation",
+    "free": true
+  }
+]

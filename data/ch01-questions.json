@@ -1,0 +1,192 @@
+{
+ "module": "ch01",
+ "title": "Equations and Inequalities",
+ "mcqIntro": "Twelve questions on the six kinds of equation this chapter solves and on the three ways an inequality's answer has to be written. Each wrong option is a real mistake with a name; the feedback tells you which one you made.",
+ "mcq": [
+  {
+   "id": "A1",
+   "topic": "linear and rational equations",
+   "stem": "Solving $4(3x-2)=12x-8$ collapses to the line $-8=-8$. What does that tell you about the equation?",
+   "options": {
+    "a": "The only solution is $x=0$, because $x$ disappeared",
+    "b": "It is a contradiction, so it has no solution at all",
+    "c": "It is an identity, so every real number is a solution",
+    "d": "The only solution is $x=-8$, read off the last line"
+   }
+  },
+  {
+   "id": "A2",
+   "topic": "linear and rational equations",
+   "stem": "Why must every candidate solution of a rational equation be checked in the **original** equation?",
+   "options": {
+    "a": "Because the LCD is easy to get wrong when a denominator is unfactored",
+    "b": "Because dividing both sides by a variable can quietly delete a root",
+    "c": "Because the distributive property does not apply to fractional terms",
+    "d": "Because multiplying by the LCD can produce a root that makes a denominator zero"
+   }
+  },
+  {
+   "id": "A3",
+   "topic": "complex numbers",
+   "stem": "What is the value of $\\sqrt{-4}\\cdot\\sqrt{-25}$?",
+   "options": {
+    "a": "$10$",
+    "b": "$-10$",
+    "c": "$10i$",
+    "d": "$-10i$"
+   }
+  },
+  {
+   "id": "A4",
+   "topic": "complex numbers",
+   "stem": "Simplify $i^{35}$.",
+   "options": {
+    "a": "$1$",
+    "b": "$-1$",
+    "c": "$-i$",
+    "d": "$i$"
+   }
+  },
+  {
+   "id": "A5",
+   "topic": "interval notation",
+   "stem": "Solve $\\lvert 3x-6\\rvert>9$. Which is the solution set?",
+   "options": {
+    "a": "$(-1,\\,5)$",
+    "b": "$(-\\infty,\\,-1)\\cup(5,\\,\\infty)$",
+    "c": "$(-\\infty,\\,-5)\\cup(1,\\,\\infty)$",
+    "d": "$[-1,\\,5]$"
+   }
+  },
+  {
+   "id": "A6",
+   "topic": "quadratic equations",
+   "stem": "A student solves $x(x+4)=5$ by writing \"$x=5$ or $x+4=5$\". What is the mistake?",
+   "options": {
+    "a": "The zero product property works only when the product equals zero",
+    "b": "The two factors must be multiplied out before they can be split",
+    "c": "Both sides of the equation should have been divided by $x$ first",
+    "d": "The square root property was the method this equation needed"
+   }
+  },
+  {
+   "id": "A7",
+   "topic": "quadratic equations",
+   "stem": "What does the discriminant of $4x^{2}-12x+9=0$ tell you?",
+   "options": {
+    "a": "There are two distinct real solutions",
+    "b": "There are two repeated solutions",
+    "c": "There are two nonreal solutions",
+    "d": "There is one real and one nonreal solution"
+   }
+  },
+  {
+   "id": "A8",
+   "topic": "applications",
+   "stem": "The two legs of a right triangle are $3$ cm and $6$ cm shorter than the hypotenuse $x$. Which equation models the triangle?",
+   "options": {
+    "a": "$(x-3)+(x-6)=x$",
+    "b": "$x^{2}+(x-3)^{2}=(x-6)^{2}$",
+    "c": "$(x-3)^{2}+(x-6)^{2}=x^{2}$",
+    "d": "$(x-3)^{2}+(x-6)^{2}=x$"
+   }
+  },
+  {
+   "id": "A9",
+   "topic": "radical and absolute-value equations",
+   "stem": "Squaring both sides of $\\sqrt{x+3}=x-3$ produces the candidates $x=1$ and $x=6$. Which of them actually solve the original equation?",
+   "options": {
+    "a": "$x=1$ alone",
+    "b": "$x=1$ and $x=6$",
+    "c": "No value satisfies the original equation",
+    "d": "$x=6$ alone"
+   }
+  },
+  {
+   "id": "A10",
+   "topic": "radical and absolute-value equations",
+   "stem": "Which pair of equations is equivalent to $\\lvert 2x-1\\rvert=\\lvert x+4\\rvert$?",
+   "options": {
+    "a": "$2x-1=x+4$ or $2x-1=-x-4$",
+    "b": "$2x-1=x+4$ or $2x-1=-x+4$",
+    "c": "$2x-1=x+4$ or $2x+1=x-4$",
+    "d": "$2x-1=x+4$, and nothing else"
+   }
+  },
+  {
+   "id": "A11",
+   "topic": "interval notation",
+   "stem": "A compound inequality has the solution \"$x\\le 2$ **or** $x\\ge 7$\". Which is that set in interval notation?",
+   "options": {
+    "a": "$(-\\infty,\\,2]\\cap[7,\\,\\infty)$",
+    "b": "$[-\\infty,\\,2]\\cup[7,\\,\\infty]$",
+    "c": "$[2,\\,7]$",
+    "d": "$(-\\infty,\\,2]\\cup[7,\\,\\infty)$"
+   }
+  },
+  {
+   "id": "A12",
+   "topic": "applications",
+   "stem": "Modelling a rectangle gives $w^{2}+6w-40=0$, where $w$ is its width in metres. What is the width?",
+   "options": {
+    "a": "$4$ metres",
+    "b": "$-10$ metres",
+    "c": "$10$ metres",
+    "d": "$4$ metres and $-10$ metres"
+   }
+  }
+ ],
+ "short": [
+  {
+   "id": "B1",
+   "topic": "linear and rational equations",
+   "prompt": "Solve $\\dfrac{2x-1}{3}-\\dfrac{x+4}{6}=\\dfrac12$. Show the step that clears the fractions."
+  },
+  {
+   "id": "B2",
+   "topic": "linear and rational equations",
+   "prompt": "Solve $\\dfrac{3}{x-4}+2=\\dfrac{x-1}{x-4}$. State the restriction before you solve, and give the solution set."
+  },
+  {
+   "id": "B3",
+   "topic": "complex numbers",
+   "prompt": "Write $\\dfrac{5-i}{2+3i}$ in standard form $a+bi$."
+  },
+  {
+   "id": "B4",
+   "topic": "complex numbers",
+   "prompt": "Simplify $\\sqrt{-8}\\cdot\\sqrt{-2}$ and $i^{-22}$. For the first, say in one sentence why $\\sqrt{a}\\sqrt{b}=\\sqrt{ab}$ may not be used."
+  },
+  {
+   "id": "B5",
+   "topic": "quadratic equations",
+   "prompt": "Solve $3x^{2}-2x-4=0$ using the quadratic formula. Give the exact solutions, fully simplified."
+  },
+  {
+   "id": "B6",
+   "topic": "quadratic equations",
+   "prompt": "Solve $2x^{2}-6x+5=0$, and say what the discriminant predicted before you solved it."
+  },
+  {
+   "id": "B7",
+   "topic": "applications",
+   "prompt": "A rectangular garden is $4$ m longer than it is wide and covers $96\\ \\text{m}^{2}$. Find its dimensions, and say why one root of your equation is discarded."
+  },
+  {
+   "id": "B8",
+   "topic": "radical and absolute-value equations",
+   "prompt": "Solve $\\sqrt{3x+7}-1=x$. Give the solution set and show the check that decides it."
+  },
+  {
+   "id": "B9",
+   "topic": "radical and absolute-value equations",
+   "prompt": "Solve (a) $2\\lvert x-5\\rvert+3=11$ and (b) $\\lvert 4x+1\\rvert+7=2$."
+  },
+  {
+   "id": "B10",
+   "topic": "interval notation",
+   "prompt": "Solve $-1\\le\\dfrac{3-2x}{4}<2$. Describe the graph, then write the solution set in set-builder notation and in interval notation."
+  }
+ ],
+ "extended": []
+}

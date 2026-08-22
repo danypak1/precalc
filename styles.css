@@ -1,0 +1,1750 @@
+/* ---------- design tokens ----------
+ * Every colour goes through a variable so the dark theme is a second token set
+ * and nothing else. The three DARK blocks below must stay in sync: one for the
+ * OS preference, one for the explicit toggle. */
+:root {
+  color-scheme: light;
+
+  --bg: #f7f8fa;
+  --panel: #ffffff;
+  --ink: #1a202c;
+  --ink-soft: #4a5568;
+  /* was #8a94a3 — 3.0:1 on white, below the 4.5:1 WCAG AA floor for text */
+  --ink-faint: #6b7280;
+  --line: #e2e6ec;
+  /* --line is a divider between blocks of text and may stay a hairline. The
+     edge of a *control* — the key field, the answer box, a quiz option — is
+     what tells a low-vision student where to type or click, and WCAG 1.4.11
+     puts that at 3:1. --line measured 1.18:1 on --bg. Use --line-ui on
+     anything the student operates, --line on anything that only separates. */
+  --line-ui: #848d9c;
+
+  --accent: #2563eb;
+  --accent-soft: #eff4ff;
+  --accent-line: #d6e2fb;
+  --on-accent: #ffffff;
+
+  --green: #16803c;
+  --green-soft: #e8f7ee;
+  --green-line: #bfe6cd;
+  --red: #b42318;
+  --red-soft: #fdecea;
+  --red-line: #f2c8c3;
+  --amber: #92600a;
+  --amber-soft: #fdf3dd;
+  --amber-line: #e8d3a2;
+
+  --code-bg: #f1f3f7;
+  --scrim: rgba(15, 23, 42, .45);
+  --shadow-drawer: 0 0 40px rgba(15, 23, 42, .18);
+  --shadow-card: 0 2px 12px rgba(37, 99, 235, .08);
+
+  --radius: 12px;
+  --sidebar-w: 264px;
+  --topbar-h: 56px;
+
+  /* Where the two sticky bands park. On desktop there is no top bar, so the tab
+     bar sits at 0; on mobile everything shifts down by the top bar. Keeping the
+     offsets in variables is what stops the quiz bar from drifting under the tab
+     bar every time either band's padding changes. */
+  --bar-top: 0px;
+  --quiz-top: 62px;
+}
+
+@media (max-width: 899px) {
+  :root {
+    --bar-top: var(--topbar-h);
+    --quiz-top: 122px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0f1419;
+    --panel: #161b22;
+    --ink: #e6edf3;
+    --ink-soft: #b3bdc9;
+    --ink-faint: #8b96a5;
+    --line: #2a323d;
+    --line-ui: #616d7c;
+
+    --accent: #6ea8fe;
+    --accent-soft: #172033;
+    --accent-line: #2c4a7c;
+    /* dark text on the light-blue button — white on #6ea8fe is only ~2.5:1 */
+    --on-accent: #0b1220;
+
+    --green: #57d98a;
+    --green-soft: #11261a;
+    --green-line: #1f5133;
+    --red: #ff9c94;
+    --red-soft: #2a1417;
+    --red-line: #5c2a26;
+    --amber: #f0b429;
+    --amber-soft: #2a2110;
+    --amber-line: #5a4413;
+
+    --code-bg: #1c232c;
+    --scrim: rgba(0, 0, 0, .6);
+    --shadow-drawer: 0 0 40px rgba(0, 0, 0, .5);
+    --shadow-card: 0 2px 12px rgba(110, 168, 254, .12);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0f1419;
+  --panel: #161b22;
+  --ink: #e6edf3;
+  --ink-soft: #b3bdc9;
+  --ink-faint: #8b96a5;
+  --line: #2a323d;
+  --line-ui: #616d7c;
+
+  --accent: #6ea8fe;
+  --accent-soft: #172033;
+  --accent-line: #2c4a7c;
+  --on-accent: #0b1220;
+
+  --green: #57d98a;
+  --green-soft: #11261a;
+  --green-line: #1f5133;
+  --red: #ff9c94;
+  --red-soft: #2a1417;
+  --red-line: #5c2a26;
+  --amber: #f0b429;
+  --amber-soft: #2a2110;
+  --amber-line: #5a4413;
+
+  --code-bg: #1c232c;
+  --scrim: rgba(0, 0, 0, .6);
+  --shadow-drawer: 0 0 40px rgba(0, 0, 0, .5);
+  --shadow-card: 0 2px 12px rgba(110, 168, 254, .12);
+}
+
+* { box-sizing: border-box; }
+
+/* Sixteen tab stops sit between the top of the page and the content on desktop
+   (brand, twelve module links, theme toggle, two footer links). Off-screen
+   until focused, first in the tab order. */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -60px;
+  border: 0;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  z-index: 60;
+  padding: 10px 16px;
+  border-radius: 0 0 9px 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top .12s;
+}
+.skip-link:focus { top: 0; }
+/* The focus targets are containers, not controls: a ring around the whole
+   screen is noise, and the point of focusing them is the announcement. */
+#main:focus, #lp-main:focus, #feedback:focus { outline: none; }
+
+/* Deep links from quiz feedback land on a heading — keep it clear of the
+   sticky tab bar (and, on mobile, the top bar above it). */
+html { scroll-padding-top: calc(var(--quiz-top) + 34px); }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Safari inflates body text in landscape unless told not to, which reflowed
+     the notes to a different width in each orientation. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Touch devices get no :hover, so without this a tap on an option or a nav row
+   gives no feedback at all until the screen re-renders — and Safari's default
+   grey flash lands on the wrong box. */
+body { -webkit-tap-highlight-color: transparent; }
+
+/* Links had no base rule at all, so any anchor whose own component forgot to
+   style it fell through to the browser's default blue — and to purple once
+   visited, which in a course means "pages you have already read" rendered in a
+   colour the palette does not contain. Three separate surfaces shipped that way
+   before this rule existed (the trainer catalogue, the cheat sheets, the
+   "message me" line on the unlock page), each fixed on its own. This is the
+   fix for the next one. Component rules still win on specificity. */
+a { color: var(--accent); }
+
+.layout { display: flex; min-height: 100vh; }
+
+/* ---------- mobile top bar (hidden ≥900px) ---------- */
+.topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.icon-btn {
+  flex-shrink: 0;
+  /* 44px is the smallest target a thumb hits reliably; 40 was measured on a
+     375px viewport and missed the guideline by four pixels on every page. */
+  width: 44px; height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-ui);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+}
+.icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Course-progress ring. --p (0–100) is set from JS. */
+.topbar-ring {
+  flex-shrink: 0;
+  position: relative;
+  /* The ring itself stays 32px; the padding makes the tappable box 44px. */
+  width: 32px; height: 32px;
+  box-sizing: content-box;
+  padding: 6px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--accent) calc(var(--p, 0) * 1%), var(--line) 0);
+}
+/* A 32px ring is the right size to look at and the wrong size to hit. The
+   pseudo-element widens the target to 44px without thickening the ring. */
+.topbar-ring::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
+.topbar-ring span {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--panel);
+  display: block;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: var(--scrim);
+}
+.scrim[hidden] { display: none; }
+
+/* ---------- sidebar ---------- */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-decoration: none;
+  color: var(--ink);
+  padding: 4px 8px;
+}
+/* A bare emoji floating next to the wordmark rendered however the visitor's OS
+   feels like that day — a colourful rounded-square badge on Mac, a flat
+   black-and-white glyph on Windows, something else again on Android. Giving it
+   its own chip, in the app's own tokens, means the brand mark looks the same
+   deliberate thing everywhere instead of gambling on a font neither this file
+   nor the course config controls. Same visual language as .nav-item .num. */
+.brand-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  font-size: 19px;
+  line-height: 1;
+}
+/* A course that carries its own vector mark instead of an emoji character puts
+   it here as inline SVG. Sized and coloured through the app's own accent
+   token so it repaints with the theme instead of shipping a colour baked into
+   the markup. Selectors are element-type, not classes, on the assumption that
+   a brand glyph is simple: strokes are the linework, a filled circle is a
+   centre dot. A course with no SVG in .brand-icon (still a bare emoji) is
+   untouched — these rules match nothing there. */
+.brand-icon svg { width: 22px; height: 22px; overflow: visible; display: block; }
+.brand-icon svg ellipse, .brand-icon svg path { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+.brand-icon svg circle { fill: var(--accent); }
+.brand strong { display: block; font-size: 15px; line-height: 1.25; }
+.brand small { display: block; color: var(--ink-faint); font-size: 12px; }
+
+.course-progress { padding: 0 8px; }
+.cp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 7px;
+}
+.cp-head .cp-pct { color: var(--accent); font-size: 12.5px; letter-spacing: 0; }
+.course-progress .progress-track { height: 5px; margin-bottom: 7px; }
+.cp-sub { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ink-faint); }
+
+/* Only the module list scrolls, so the attribution stays pinned at the bottom
+   instead of being clipped once the progress block is added above it. */
+/* overscroll-behavior: flicking the module list to its end used to hand the
+   scroll on to the page underneath the drawer. */
+#module-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.nav-item .num {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+.nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.nav-item.active .num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.nav-item.enabled:hover { background: var(--bg); }
+.nav-item.locked { color: var(--ink-faint); cursor: default; }
+.nav-item .nav-label { flex: 1; min-width: 0; }
+.nav-item .nav-stat {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.nav-item .nav-stat.done { color: var(--green); }
+/* A module that needs a key. Not `.locked` — that means "not written yet" and
+   dims the row to unclickable. These are clickable and lead to the summary and
+   the offer, so the padlock marks them without hiding them. */
+.nav-item .nav-lock { flex-shrink: 0; font-size: 11px; opacity: 0.65; }
+
+/* Course-wide tools, pinned between the scrolling module list and the theme
+   toggle. #module-nav is the flex child that grows, so these rows never scroll
+   out of reach however long the module list gets. */
+.tool-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.tool-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.tool-link:hover { background: var(--bg); color: var(--ink); }
+.tool-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tool-link .tool-ico {
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  font-size: 13px;
+  opacity: .85;
+}
+.tool-link .tool-link-label { flex: 1; min-width: 0; }
+
+/* The trainer belonging to the module on screen, offered beside its tabs. */
+.trainer-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.trainer-row:empty { display: none; }
+.trainer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+}
+.trainer-chip:hover { border-color: var(--accent); }
+
+.theme-toggle {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink-soft);
+  font: 500 12.5px/1.3 inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.theme-toggle:hover { background: var(--bg); color: var(--ink); }
+.theme-ico { font-size: 14px; line-height: 1; }
+
+.sidebar-foot {
+  font-size: 11px;
+  color: var(--ink-faint);
+  line-height: 1.5;
+  padding: 0 8px;
+}
+
+/* ---------- main ---------- */
+.main { flex: 1; min-width: 0; padding: 32px clamp(20px, 5vw, 64px) 80px; }
+.page { max-width: 780px; margin: 0 auto; }
+/* The Learn tab needs room for the contents column beside the article. */
+.page.wide { max-width: 1080px; }
+
+.crumbs { font-size: 13px; color: var(--ink-faint); margin-bottom: 6px; }
+.crumbs a { color: var(--ink-faint); text-decoration: none; }
+.crumbs a:hover { color: var(--accent); }
+
+h1.page-title { font-size: 28px; line-height: 1.2; margin: 0 0 4px; letter-spacing: -0.02em; }
+.page-sub { color: var(--ink-soft); margin: 0 0 24px; font-size: 15px; }
+
+/* tabs — the band sticks to the top so students can switch Learn/Practice/Summary
+   without scrolling back up a 9,000-word chapter. On mobile it parks under the
+   56px top bar. The band needs its own background or content shows through. */
+.tabbar {
+  position: sticky;
+  top: var(--bar-top);
+  z-index: 15;
+  background: var(--bg);
+  padding: 10px 0 16px;
+  margin-bottom: 12px;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 4px;
+  border-radius: 10px;
+  width: fit-content;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: inherit;
+}
+.ico {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tab.active { background: var(--accent); color: var(--on-accent); }
+.tab:not(.active):hover { background: var(--bg); }
+
+/* cards */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+.card h3 { margin: 0 0 4px; font-size: 17px; }
+.card .muted { color: var(--ink-soft); font-size: 14px; margin: 0; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+
+/* small layout utilities — these replaced inline style="" in app.js */
+.row-gap { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+.stack-top { margin-top: 16px; }
+
+.pill {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.pill.done { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+
+/* "pick up where you left off" — the one thing a returning student wants */
+.resume-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 22px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.resume-card:hover { border-color: var(--accent); }
+.resume-card .r-icon { font-size: 22px; flex-shrink: 0; }
+.resume-card .r-label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.resume-card .r-what { font-weight: 600; font-size: 15px; line-height: 1.35; }
+.resume-card .r-go { margin-left: auto; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+/* Course-wide tools (mock exam, mistakes pass). Deliberately not module cards:
+   they sit above the twelve and must not read as a thirteenth chapter. */
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 26px;
+}
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 18px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color .15s, box-shadow .15s;
+}
+.tool-card:hover { border-color: var(--accent); box-shadow: var(--shadow-card); }
+.tool-card .tool-title { font-weight: 700; font-size: 15px; }
+.tool-card .tool-sub { font-size: 13px; line-height: 1.45; color: var(--ink-soft); }
+
+/* exam */
+.exam-rules { margin: 12px 0 20px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.exam-rules li { font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); }
+.exam-clock {
+  margin-left: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-soft);
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.exam-clock.low { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+.card.notice { border-color: var(--amber-line); background: var(--amber-soft); font-weight: 500; }
+.exam-row { text-decoration: none; color: inherit; }
+.exam-row:hover .t-name { color: var(--accent); }
+.exam-row .t-name { width: 210px; }
+@media (max-width: 599px) {
+  .exam-row { flex-wrap: wrap; }
+  .exam-row .t-name { width: 100%; }
+}
+.empty-card h3 { margin-bottom: 6px; }
+.empty-card .row-gap { margin-top: 16px; }
+
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.module-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-decoration: none;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.module-card.enabled:hover { border-color: var(--accent); box-shadow: var(--shadow-card); }
+/* Locked used to be opacity: .5, which took the title to 2.4:1. The padlock
+   and the recessed panel say the same thing without dimming the text. */
+.module-card.locked { background: var(--bg); border-color: var(--line-ui); cursor: default; }
+.module-card .mod-num { font-size: 12px; font-weight: 600; color: var(--ink-faint); letter-spacing: .04em; }
+.module-card .mod-title { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.module-card .mod-status { font-size: 12.5px; color: var(--ink-faint); margin-top: auto; }
+.module-card .mod-status.done { color: var(--green); font-weight: 500; }
+.module-card .mod-status.doing { color: var(--accent); font-weight: 500; }
+
+/* buttons */
+.btn {
+  display: inline-block;
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 14px/1 inherit;
+  font-family: inherit;
+  padding: 11px 20px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn.secondary {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line-ui);
+}
+.btn.secondary:hover { background: var(--bg); filter: none; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* ---------- quiz ---------- */
+/* While a quiz is running the module heading is dead weight — the tab bar stays
+   as the way out, everything else gives its height to the question. */
+.page.quiz-mode .crumbs,
+.page.quiz-mode .page-title,
+.page.quiz-mode .module-sub { display: none; }
+.page.quiz-mode .tabbar { padding-top: 14px; }
+
+.quiz-bar {
+  position: sticky;
+  top: var(--quiz-top);
+  z-index: 12;
+  background: var(--bg);
+  padding-bottom: 14px;
+}
+
+.quiz-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.quiz-top .q-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+.flag-btn {
+  border: 1px solid var(--line-ui);
+  background: var(--panel);
+  color: var(--ink-faint);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.flag-btn:hover { color: var(--amber); border-color: var(--amber); }
+.flag-btn.on { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+.chip {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.progress-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.progress-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s; }
+
+.q-stem { font-size: 18px; font-weight: 600; line-height: 1.45; margin: 0 0 18px; }
+
+.options { display: flex; flex-direction: column; gap: 10px; }
+.option {
+  text-align: left;
+  background: var(--panel);
+  border: 1.5px solid var(--line-ui);
+  border-radius: 10px;
+  padding: 13px 16px;
+  font: 15px/1.45 inherit;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  transition: border-color .12s, background .12s;
+}
+.option:not(:disabled):hover { border-color: var(--accent); background: var(--accent-soft); }
+.option .letter {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+/* Keyboard shortcut badge, shown on the pointer-less-friendly side of things.
+   Hidden on touch, where there is no keyboard to hint at. */
+.option .key-hint {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  align-self: center;
+}
+@media (hover: none) { .option .key-hint { display: none; } }
+.option:disabled .key-hint { visibility: hidden; }
+
+.option.correct { border-color: var(--green); background: var(--green-soft); }
+.option.correct .letter { color: var(--green); }
+.option.wrong { border-color: var(--red); background: var(--red-soft); }
+.option.wrong .letter { color: var(--red); }
+.option:disabled { cursor: default; }
+/* Recede the options that were not picked — but with colour, not opacity.
+   opacity: .55 composited the letter down to 2.15:1, so the student who most
+   needs to re-read the wrong answers is the one who cannot. */
+.option.dim:disabled { color: var(--ink-soft); background: var(--bg); border-color: var(--line); }
+.option.dim:disabled .letter { color: var(--ink-faint); }
+
+/* Exam conditions: the pick is shown, the verdict is not. Deliberately the
+   accent colour and not green — green reads as "correct" at a glance. */
+.option.picked { border-color: var(--accent); background: var(--accent-soft); }
+.option.picked .letter { color: var(--accent); }
+/* Not colour alone. In an exam there is no verdict text to fall back on, so the
+   only signal that an option was chosen was a tint measured at 1.04:1 against
+   the panel — invisible to a good many people and to every printed copy. */
+.option.picked .key-hint::before { content: "✓ "; font-weight: 700; color: var(--accent); }
+
+.feedback {
+  margin-top: 18px;
+  border-radius: 10px;
+  padding: 16px 18px;
+  font-size: 14.5px;
+  animation: fadein .2s;
+}
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+.feedback.good { background: var(--green-soft); border: 1px solid var(--green-line); }
+.feedback.bad { background: var(--red-soft); border: 1px solid var(--red-line); }
+.feedback .verdict { font-weight: 700; margin: 0 0 6px; }
+.feedback.good .verdict { color: var(--green); }
+.feedback.bad .verdict { color: var(--red); }
+.feedback p { margin: 6px 0; }
+.feedback .diag { font-weight: 500; }
+.review-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.quiz-nav { margin-top: 22px; display: flex; gap: 10px; }
+
+/* results */
+.score-hero { text-align: center; padding: 10px 0 4px; }
+.score-hero .big { font-size: 52px; font-weight: 700; letter-spacing: -0.03em; }
+.score-hero .of { font-size: 20px; color: var(--ink-faint); font-weight: 500; }
+.score-hero p { color: var(--ink-soft); margin: 4px 0 0; }
+
+.topic-label { margin-bottom: 6px; }
+.topic-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; font-size: 14px; }
+.topic-row .t-name { width: 150px; flex-shrink: 0; color: var(--ink-soft); }
+.topic-row .t-track { display: block; flex: 1; height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.topic-row .t-fill { display: block; height: 100%; border-radius: 99px; }
+.topic-row .t-pct { width: 52px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 13px; }
+
+/* results: the sections behind the missed questions */
+.weak-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.weak-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 14px;
+}
+.weak-row:hover { border-color: var(--accent); background: var(--accent-soft); }
+.weak-row .weak-sec { font-weight: 600; }
+.weak-row .weak-n { color: var(--ink-faint); font-size: 13px; }
+.weak-row .weak-go { margin-left: auto; color: var(--accent); font-weight: 700; }
+
+/* ---------- written answers ---------- */
+.written-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.written-card.open { border-color: var(--accent); }
+.written-card .w-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  padding: 13px 16px;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.written-card .w-head:hover { background: var(--bg); }
+.written-card .w-id { font-weight: 700; color: var(--accent); font-size: 14px; flex-shrink: 0; }
+.written-card .w-prompt {
+  font-weight: 600;
+  font-size: 14.5px;
+  line-height: 1.45;
+  flex: 1;
+  min-width: 0;
+}
+/* Collapsed rows show one line; opening reveals the whole prompt. */
+.written-card:not(.open) .w-prompt {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.written-card .w-state { flex-shrink: 0; font-size: 11.5px; font-weight: 700; color: var(--ink-faint); }
+.written-card.checked .w-state { color: var(--green); }
+.written-card .w-caret { flex-shrink: 0; color: var(--ink-faint); transition: transform .18s; }
+.written-card.open .w-caret { transform: rotate(180deg); }
+.written-card .w-body { padding: 0 16px 16px; }
+.model-text { margin-top: 12px; }
+.written-card textarea {
+  width: 100%;
+  min-height: 96px;
+  border: 1.5px solid var(--line-ui);
+  border-radius: 9px;
+  padding: 12px 14px;
+  font: 14.5px/1.55 inherit;
+  font-family: inherit;
+  color: var(--ink);
+  resize: vertical;
+  background: var(--bg);
+}
+.written-card textarea:focus:not(:focus-visible) { outline: none; border-color: var(--accent); background: var(--panel); }
+.model-box {
+  margin-top: 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 14.5px;
+}
+.model-box .m-label { font-weight: 700; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.marks-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.marks-list label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.marks-list input { margin-top: 3px; accent-color: var(--green); }
+/* One flex item, not one per text run. A label whose content sat directly in the
+   flex box turned every bare text node and every KaTeX span into its own item:
+   with inline math in a marking point, at 375px, "the zero pivot recognised and
+   the exchange performed, with $s$ recorded" laid itself out as two columns and
+   read out of order. min-width:0 lets that item shrink so long math wraps
+   instead of pushing the box wide. */
+.marks-list .mark-text { min-width: 0; }
+.self-score { margin-top: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+.part-block { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+.part-block .p-prompt { font-weight: 600; font-size: 14.5px; margin-bottom: 8px; }
+
+/* ---------- notes: contents + reading progress ---------- */
+.read-progress {
+  height: 2px;
+  background: transparent;
+  border-radius: 99px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.read-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 99px;
+}
+
+.learn-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 232px;
+  gap: 28px;
+  align-items: start;
+}
+
+.toc { position: sticky; top: 96px; }
+.toc-toggle { display: none; }
+.toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  padding-left: 4px;
+}
+.toc-list a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ink-faint);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  margin-left: -5px;
+}
+.toc-list a:hover { color: var(--ink); background: var(--panel); }
+.toc-list a.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-left-color: var(--accent);
+}
+
+.resume-section {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  padding: 11px 16px;
+  margin-bottom: 14px;
+  font: 14px/1.4 inherit;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.resume-section .r-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ---------- locked state & sign-in ---------- */
+.lock-card { text-align: center; }
+.lock-card .lock-icon { font-size: 30px; line-height: 1; margin-bottom: 8px; }
+.lock-card h3 { font-size: 18px; }
+.lock-card .muted { max-width: 46ch; margin: 0 auto; }
+.lock-card .lock-what { margin-top: 10px; font-size: 13.5px; }
+.lock-card .row-gap { justify-content: center; }
+
+/* What a locked module shows in place of its content: a description of the
+   chapter. Deliberately not styled like `.md` — it must not read as the start of
+   the notes, because it is a card about them. */
+.teaser-about { margin-top: 16px; }
+.teaser-blurb {
+  margin-top: 10px;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  max-width: 62ch;
+}
+.topic-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.topic-list li {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 5px 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.teaser-stats {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* The one card on the home page that sells. Tinted like the lock card's accent
+   so the two read as the same conversation, but left-aligned and quiet — it sits
+   above a course the visitor is trying to read, not in the way of it. */
+.offer-card { background: var(--accent-soft); border-color: var(--accent-line); }
+
+.login-card { display: flex; flex-direction: column; gap: 14px; max-width: 420px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field span { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.field input {
+  border: 1.5px solid var(--line-ui);
+  border-radius: 9px;
+  padding: 11px 14px;
+  font: 15px/1.4 inherit;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--bg);
+}
+.field input:focus:not(:focus-visible) { outline: none; border-color: var(--accent); background: var(--panel); }
+.login-msg { margin: 0; font-size: 13.5px; min-height: 1.2em; color: var(--ink-soft); }
+.login-msg.bad { color: var(--red); font-weight: 600; }
+.login-msg.good { color: var(--green); font-weight: 600; }
+.login-foot { margin-top: 18px; font-size: 13px; max-width: 46ch; }
+
+/* Key recovery: present, but folded away — most people never need it. */
+.lost-key { margin-top: 16px; }
+.lost-key summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.lost-key p { margin: 10px 0; max-width: 58ch; font-size: 13.5px; }
+.lost-key input {
+  flex: 1 1 220px;
+  border: 1.5px solid var(--line-ui);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font: 14px/1.4 inherit;
+  color: var(--ink);
+  background: var(--bg);
+}
+.lost-key input:focus:not(:focus-visible) { outline: none; border-color: var(--accent); background: var(--panel); }
+
+/* An access key is a fixed-width string; reading it back to check a typo is
+   much easier when the glyphs line up. */
+#login-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
+
+/* The two house rules — device limit and watermark — stated on the way in. */
+.login-terms {
+  margin: 16px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  max-width: 58ch;
+  line-height: 1.55;
+}
+.login-terms li + li { margin-top: 6px; }
+
+/* "Licensed to …" under every explanation and model answer. Quiet enough to
+   ignore while studying, present enough to notice before pasting it somewhere. */
+.licensed-note {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+}
+
+/* ---------- loading skeleton ---------- */
+.skeleton {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 36px clamp(20px, 4vw, 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sk-line {
+  display: block;
+  height: 13px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--line), var(--bg), var(--line));
+  background-size: 300% 100%;
+  animation: sk 1.4s ease-in-out infinite;
+}
+.sk-line.short { width: 55%; }
+@keyframes sk { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+/* ---------- markdown content ---------- */
+.md { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 36px clamp(20px, 4vw, 48px); }
+.md h1 { font-size: 26px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 8px; }
+.md h2 { font-size: 20px; letter-spacing: -0.01em; margin: 36px 0 12px; padding-top: 20px; border-top: 1px solid var(--line); }
+.md h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.md h3 { font-size: 16.5px; margin: 24px 0 8px; }
+.md p { margin: 10px 0; font-size: 15.5px; }
+.md li { font-size: 15.5px; margin: 4px 0; }
+.md blockquote {
+  margin: 18px 0;
+  padding: 12px 18px;
+  background: var(--amber-soft);
+  border-left: 3px solid var(--amber);
+  border-radius: 0 8px 8px 0;
+  font-size: 15px;
+}
+.md blockquote p { margin: 4px 0; }
+/* A collapsible derivation (md.js "::: details"). Quieter than a blockquote on
+   purpose: a blockquote shouts "read me", and this is the block a reader is
+   explicitly allowed to skip. Open, it reads as ordinary prose one step in. */
+.md details.derivation {
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-soft, transparent);
+}
+.md details.derivation > summary {
+  cursor: pointer;
+  padding: 10px 16px;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+  /* 44px of tappable height on a phone, where a 15px line of text is not. */
+  min-height: 24px;
+  list-style-position: outside;
+}
+.md details.derivation[open] > summary {
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.md details.derivation > :not(summary) { margin-left: 16px; margin-right: 16px; }
+.md details.derivation > :nth-child(2) { margin-top: 12px; }
+.md details.derivation > :last-child { margin-bottom: 12px; }
+/* Printing a chapter must not lose the proofs a reader collapsed on screen. */
+@media print {
+  .md details.derivation > :not(summary) { display: block !important; }
+  /* display:block on the children is not enough on its own: Chrome hides a
+     closed <details> through ::details-content { content-visibility: hidden },
+     which sits above the children and wins. Measured with the rule below
+     missing: 45px tall, checkVisibility() false — every collapsed derivation
+     absent from the printout. Engines without ::details-content ignore this
+     and keep working off the line above. */
+  .md details.derivation::details-content {
+    content-visibility: visible !important;
+    block-size: auto !important;
+  }
+}
+/* display:block + overflow-x is what lets a six-column table scroll sideways
+   inside the article on a phone instead of widening the whole page. */
+.md table,
+.model-box table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 100%;
+  margin: 16px 0;
+  font-size: 14.5px;
+  display: block;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.md th, .md td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+/* Model answers are rendered with MD.render into .model-box, which is not
+   .md — so the notes' table and code-fence rules never reached them. A
+   Punnett square came out with no grid lines at all, and a fenced block
+   471px wide sat in a 233px box with no way to scroll it: the student
+   marking their own work could not read the end of the line. */
+.model-box th, .model-box td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+.md th,
+.model-box th { background: var(--bg); font-weight: 600; }
+.md code,
+.model-box code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 13.5px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.md pre,
+.model-box pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 9px; padding: 14px 18px; overflow-x: auto; }
+.md pre code,
+.model-box pre code { background: none; border: 0; padding: 0; font-size: 13.5px; line-height: 1.55; }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.md a { color: var(--accent); }
+.md em { color: var(--ink-soft); }
+
+/* ---------- rendered maths (KaTeX) ----------
+   Only loaded by courses whose course file says "math": "katex"; these rules
+   are inert everywhere else.
+
+   The overflow rule is the load-bearing one, for the same reason the table rule
+   above is: a long integral or a cases block is a single unbreakable line, and
+   without its own scroller it widens the whole page on a phone rather than
+   scrolling inside the article. */
+.katex-display {
+  margin: 16px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Scrolled content needs vertical room for the scrollbar and for the
+     descenders KaTeX draws outside the line box. */
+  padding: 4px 2px 6px;
+  /* Scroll shadows, pure CSS: the two `local` gradients scroll with the content
+     and so uncover the two fixed ones only at an edge there is more content
+     past. Measured at 375px, 28 of module 01's 193 display formulas are wider
+     than the column — a chain like "= 20+20k − 5(1+2k+k²) = …" is one
+     unbreakable line — and without an edge that darkens, a formula that
+     continues off-screen looks exactly like a formula that has ended. */
+  background:
+    linear-gradient(to right, var(--panel) 40%, transparent) left center / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--panel) 40%, transparent) right center / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(128, 128, 128, 0.34), transparent) left center / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(128, 128, 128, 0.34), transparent) right center / 14px 100% no-repeat scroll;
+}
+/* A display formula gets its own scroller (above). An *inline* one gets none —
+   it is an inline box, so max-width does not apply to it — and a single wide
+   one widens the whole document: module 02's quotient-rule chant measured 467px
+   inside a 375px viewport and pushed every other line of the chapter sideways
+   by 125px. The paragraph becomes the scroller instead, which contains the
+   damage to the one line that earned it. Fixing the formula is still the right
+   move where it reads better as display maths; this is so the next one cannot
+   take the page with it. */
+/* The scroller is the paragraph, or the whole list — never the <li>. An
+   overflow value on a list item establishes a block formatting context, and
+   Chrome then paints its `outside` marker outside the scroll box, i.e. nowhere:
+   every numbered list in the course rendered without its numbers, which is
+   worst in a list of steps a reader is meant to follow in order. Found at 375px
+   in the linear-algebra module 01, where the six learning objectives came out
+   as six unnumbered paragraphs. Moving the overflow up to the <ul>/<ol> keeps
+   the original guarantee — a too-wide formula scrolls its own container instead
+   of taking the page sideways — and leaves the markers visible. */
+.md p, .md ul, .md ol { overflow-x: auto; }
+
+/* Model answers and mark schemes render into .model-box, which is NOT inside
+   .md — so the rule above never covered them, and a wide inline formula in a
+   key took the whole page sideways instead of scrolling its own paragraph. The
+   guarantee has to hold wherever course prose carrying maths is rendered, not
+   only in the notes. */
+.model-box p, .model-box ul, .model-box ol, .model-box li { overflow-x: auto; }
+
+/* Inline maths must not inflate the line height of a paragraph it sits in;
+   a fraction is taller than the text around it and pushes lines apart. */
+.katex { font-size: 1.05em; }
+.md p .katex, .model-box p .katex, .option .katex, li .katex { line-height: 1.2; }
+/* The source, shown when KaTeX did not load. Distinguishable from a code span
+   on purpose: a formula the reader has to decode is a fault, not a style. */
+.math-raw { color: var(--ink-soft); }
+
+.flash { animation: flash-bg 1.6s ease-out; }
+@keyframes flash-bg { 0% { background: var(--accent-soft); } 100% { background: transparent; } }
+
+/* ---------- mobile: the sidebar becomes an off-canvas drawer ----------
+   It used to reflow into a wrapping list of all 12 modules ABOVE the content,
+   which meant ~600px of scrolling to reach the page title on every navigation.
+   Same .nav-item markup, different container. `visibility` (not just transform)
+   is what keeps the closed drawer out of the tab order. */
+@media (max-width: 899px) {
+  .topbar { display: flex; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    width: min(84vw, 320px);
+    height: 100dvh;
+    padding: max(18px, env(safe-area-inset-top)) 14px
+             max(18px, env(safe-area-inset-bottom))
+             max(14px, env(safe-area-inset-left));
+    box-shadow: var(--shadow-drawer);
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform .22s ease, visibility .22s;
+  }
+  body.nav-open .sidebar { visibility: visible; transform: none; }
+  body.nav-open { overflow: hidden; }
+
+  /* env() keeps the text clear of the notch in landscape and of the home
+     indicator at the bottom. */
+  .main {
+    padding: 8px max(16px, env(safe-area-inset-right)) calc(72px + env(safe-area-inset-bottom))
+                 max(16px, env(safe-area-inset-left));
+  }
+  .topbar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  h1.page-title { font-size: 24px; }
+  /* The top bar already names the module; the crumb trail and the standing
+     "learn → practise → review" line are pure duplication on a phone. */
+  .crumbs, .module-sub { display: none; }
+  /* A card at 24px a side spends 14% of a 375px screen on padding. */
+  .card { padding: 18px; }
+
+  /* Contents collapses into a disclosure above the article instead of a column. */
+  /* min-width:0 or the article refuses to shrink below its content width and
+     the card runs off the right edge. align-items is the other half of it: the
+     grid's `start` carries into the flex box, where it sizes the article to its
+     max-content width — one wide table in the notes and the whole page scrolled
+     sideways with the paragraphs cut off at the right edge. */
+  .learn-layout { display: flex; flex-direction: column-reverse; gap: 0; align-items: stretch; }
+  .learn-layout > * { min-width: 0; }
+  .toc { position: static; margin-bottom: 14px; }
+  .toc-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font: 600 14px/1.3 inherit;
+    font-family: inherit;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .toc-caret { color: var(--ink-faint); transition: transform .18s; }
+  .toc.open .toc-caret { transform: rotate(180deg); }
+  .toc-list {
+    display: none;
+    margin-top: 8px;
+    max-height: 50vh;
+    border-left: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 6px;
+  }
+  .toc.open .toc-list { display: flex; }
+  .toc-list a { font-size: 14px; padding: 9px 12px; margin-left: 0; border-left: 0; }
+  .toc-list a.active { background: var(--accent-soft); }
+
+  /* On one line the prompt gets ~200px between the id and the status chip and
+     wraps into a ribbon. Give it its own row instead. */
+  .written-card .w-head { flex-wrap: wrap; align-items: center; }
+  .written-card .w-state { margin-left: auto; }
+  .written-card .w-prompt { order: 3; flex: 1 0 100%; margin-top: 6px; }
+  .written-card:not(.open) .w-prompt { -webkit-line-clamp: 2; }
+  .md { padding: 24px 16px; border-radius: 10px; }
+  .resume-card { padding: 14px 16px; }
+  .module-grid { grid-template-columns: 1fr; }
+
+  /* ---- tap targets ----
+     Everything below was sized for a mouse: 31px tabs, 36px nav rows, 30px
+     flag. A fingertip is about 9mm, which is why the guidance is 44px. */
+  /* Full width on a phone so each tab is a thumb-sized third; capped so the same
+     rule does not stretch three tabs across a tablet. */
+  .tabs { width: 100%; max-width: 440px; }
+  .tab { flex: 1; justify-content: center; padding: 8px 6px; min-height: 44px; }
+  /* A fourth tab does not fit at 375px on the settings the other three use:
+     "Practice" plus its icon has a min-content width of ~93px against the 81px
+     a quarter of the strip allows, and a flex item does not shrink below its
+     min-content, so the strip pushed 15px off the side of the page. Tighter
+     type and spacing for four tabs only — the three-tab courses keep theirs. */
+  .tabs-4 .tab { padding: 8px 2px; gap: 4px; font-size: 12.5px; min-width: 0; }
+  .tabs-4 .tab svg { width: 15px; height: 15px; }
+  /* Taller tabs buy their height back out of the band's padding, so the sticky
+     chrome above the question does not grow. --quiz-top tracks the total. */
+  .tabbar { padding: 8px 0 10px; }
+  .page-title + .tabbar { padding-top: 10px; }
+  .page.quiz-mode .tabbar { padding-top: 6px; padding-bottom: 8px; }
+  /* Two sticky bands plus the question stem is most of a phone screen. The
+     progress track does not need 24px of air under it. */
+  .quiz-bar { padding-bottom: 10px; }
+  .quiz-bar .progress-track { margin-bottom: 8px; }
+  .quiz-top { margin-bottom: 8px; }
+  .nav-item { padding: 10px; }
+  .btn { padding: 13px 20px; min-height: 44px; line-height: 18px; }
+  /* These three stayed at 40px after the phone pass — close enough to look
+     right, and measurably under the 9mm fingertip the rest of this block is
+     sized for. The ring above already solves it the tidy way: grow the hit area
+     with a pseudo-element, leave the drawn control alone. */
+  .flag-btn { width: 40px; height: 40px; position: relative; }
+  .flag-btn::after { content: ""; position: absolute; inset: -2px; }
+  .icon-btn { position: relative; }
+  .icon-btn::after { content: ""; position: absolute; inset: -2px; }
+  .theme-toggle { padding: 11px 10px; min-height: 44px; }
+  .toc-list a { padding: 11px 12px; }
+  .lost-key summary { padding: 10px 0; }
+
+  /* ---- text fields ----
+     Anything under 16px makes iOS Safari zoom the page in on focus and never
+     zoom back out, which left students typing a written answer inside a
+     magnified layout they had to pinch their way out of. */
+  .written-card textarea,
+  .field input,
+  .lost-key input { font-size: 16px; }
+
+  /* ---- the quiz's way forward ----
+     The explanation under a wrong answer runs several hundred pixels; "Next
+     question" sat below all of it, so every question ended with a scroll past
+     text already read. Pinned to the bottom of the card, it is under the thumb
+     the moment feedback appears. */
+  .page.quiz-mode .quiz-nav {
+    position: sticky;
+    bottom: 0;
+    margin: 22px -18px -18px;
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 10px 10px;
+  }
+  .page.quiz-mode .quiz-nav:empty { display: none; }
+  /* The exam puts three buttons in this bar. Split across a third of a phone
+     they each wrap to two lines, so the one that moves the paper forward gets a
+     row of its own and Previous/Submit share the one below. */
+  .page.quiz-mode .quiz-nav { flex-wrap: wrap; }
+  .page.quiz-mode .quiz-nav .btn { flex: 1; text-align: center; white-space: nowrap; }
+  .page.quiz-mode .quiz-nav #next-q { flex: 1 0 100%; order: -1; }
+
+  /* Name over bar instead of beside it — at 150px of a 307px row the track was
+     down to 80px and read as a decoration rather than a score. */
+  .topic-row { flex-wrap: wrap; }
+  .topic-row .t-name { width: 100%; }
+
+  /* Touch has no hover, so this is the only press feedback there is. */
+  .option:not(:disabled):active,
+  .btn:active,
+  .module-card.enabled:active,
+  .nav-item.enabled:active,
+  .tool-card:active,
+  .resume-card:active { filter: brightness(.94); }
+}
+
+/* Desktop keeps the sidebar permanently visible; nothing to open or close. */
+@media (min-width: 900px) {
+  .scrim { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ---------- focus ----------
+   Nothing had a visible focus ring, so keyboard users were navigating blind. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.option:focus-visible, .btn:focus-visible, .w-head:focus-visible { outline-offset: 3px; }
+
+/* ---------- print ----------
+   The Summary tab is the revision sheet students print the night before. */
+/* Only ever seen on paper: the attribution that the sidebar carries on screen. */
+.print-credit { display: none; }
+
+@media print {
+  /* Paper is a third theme, and it had no token block. `html, body` below was
+     reset to black on white, but every other colour still came from whichever
+     theme the student was reading in — so printing from dark mode put
+     --ink-soft at 1.90:1, the ✓/✗ verdict at 1.80:1 and the ⚠️ slide-error rule
+     at 1.86:1 on white paper. Those are the exact things a printed revision copy
+     is for. Force the light palette regardless of what the screen was showing. */
+  :root, :root[data-theme="dark"] {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --ink: #000000;
+    --ink-soft: #333333;
+    --ink-faint: #555555;
+    --line: #999999;
+    --line-ui: #666666;
+    --accent: #1a4fbf;
+    --accent-soft: #ffffff;
+    --accent-line: #999999;
+    --on-accent: #ffffff;
+    --green: #12662f;
+    --green-soft: #ffffff;
+    --green-line: #12662f;
+    --red: #8f1b12;
+    --red-soft: #ffffff;
+    --red-line: #8f1b12;
+    --amber: #6b4405;
+    --amber-soft: #ffffff;
+    --amber-line: #6b4405;
+    --code-bg: #f2f2f2;
+  }
+  .topbar, .sidebar, .scrim, .tabbar, .crumbs, .toc, .resume-section,
+  .quiz-nav, .btn, .theme-toggle, .tool-grid,
+  /* Screen furniture with nothing to say on paper: the sticky quiz band, the
+     flag control and the progress bars, which print as empty rectangles. */
+  .quiz-bar, .flag-btn, .progress-track, .read-progress { display: none !important; }
+  .print-credit {
+    display: block;
+    margin-top: 2em;
+    padding-top: 0.75em;
+    border-top: 1px solid #999;
+    font-size: 9pt;
+    color: #333;
+  }
+  html, body { background: #fff; color: #000; }
+  .main { padding: 0; }
+  .page, .page.wide { max-width: none; }
+  .md {
+    border: 0;
+    padding: 0;
+    background: none;
+  }
+  .md h2 { break-after: avoid; page-break-after: avoid; }
+  .md table, .md blockquote, .card { break-inside: avoid; page-break-inside: avoid; }
+  a[href^="#"] { text-decoration: none; color: inherit; }
+}
+
+
+/* ---------- interactive trainers ----------------------------------------
+   The canvas is sized by CSS and repainted by a ResizeObserver, so the aspect
+   ratio here is the only place the scene's shape is decided. 4:3 on a phone,
+   wider on a desktop: a projectile needs horizontal room, and a 375px column
+   that is also 375px tall wastes half the screen on sky. */
+.sim-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.sim-title { margin: 0 0 6px; font-size: 17px; }
+.sim-intro { margin: 0 0 14px; color: var(--ink-soft); font-size: 14.5px; line-height: 1.55; }
+.sim-stage { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.sim-canvas { display: block; width: 100%; height: 260px; touch-action: pan-y; }
+@media (min-width: 700px) { .sim-canvas { height: 340px; } }
+
+.sim-controls { display: grid; gap: 10px; margin: 14px 0 4px; }
+/* label and value on one row, the track underneath: the value used to render
+   below the slider, so the number a student is setting was the furthest thing
+   on screen from the control setting it. */
+.sim-ctl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; font-size: 14px; }
+.sim-ctl-label { color: var(--ink-soft); }
+.sim-ctl output { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+/* Full-width track, and a thumb big enough to hit with a thumb: the default
+   16px target is below the 44px guideline every other control on the site meets. */
+.sim-ctl input[type="range"] { grid-column: 1 / -1; width: 100%; height: 44px; accent-color: var(--accent); }
+
+.sim-readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 12px 0 0; }
+.sim-ro { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.sim-ro dt { font-size: 11.5px; color: var(--ink-faint); margin: 0; }
+.sim-ro dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* A `choice` parameter: three rules, not three points on a scale. 44px tall so
+   it is a real tap target on a phone, which a slider thumb is only by accident. */
+.sim-ctl-choice { display: block; }
+.sim-choice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.sim-choice button {
+  flex: 1 1 auto; min-height: 44px; padding: 8px 14px;
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--ink-soft); background: var(--panel);
+  border: 1px solid var(--line-ui); border-radius: 9px; cursor: pointer;
+}
+.sim-choice button:hover { border-color: var(--accent); color: var(--accent); }
+.sim-choice button.active {
+  background: var(--accent); border-color: var(--accent); color: var(--panel);
+}
+
+.sim-watch { margin: 16px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 14px; line-height: 1.6; }
+.sim-watch li { margin-bottom: 6px; }
+
+.sim-challenges { margin-top: 16px; display: grid; gap: 10px; }
+.sim-challenge { display: flex; gap: 10px; background: var(--bg); border: 1px solid var(--line);
+                 border-radius: 10px; padding: 12px 14px; }
+.sim-challenge.done { border-color: var(--green); background: var(--green-soft); }
+.sim-chal-mark { font-weight: 700; color: var(--ink-faint); }
+.sim-challenge.done .sim-chal-mark { color: var(--green); }
+.sim-chal-prompt { margin: 0; font-size: 14.5px; }
+.sim-chal-explain { margin: 8px 0 0; font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
+.sim-review { margin: 14px 0 0; font-size: 13.5px; color: var(--ink-faint); }
+
+.sim-group + .sim-group { margin-top: 12px; }
+.sim-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.sim-list li { display: flex; align-items: center; gap: 8px; padding: 10px 0;
+               border-top: 1px solid var(--line); font-size: 15px; }
+.sim-list li:first-child { border-top: 0; }
+/* The catalogue rows (trainers, and the cheat sheets that reuse this list) were
+   the only links in the app with no rule of their own, so they fell through to
+   the browser default: blue, underlined, and purple once visited — three colours
+   this palette does not contain, on the two pages that are meant to read as a
+   shelf of contents. The row is the target, so it takes the whole width; the
+   underline comes back on hover and focus, where it means "this one". */
+.sim-list a { min-height: 44px; display: flex; align-items: center; flex: 1;
+              color: var(--ink); font-weight: 550; text-decoration: none; }
+.sim-list a:hover, .sim-list a:focus-visible { color: var(--accent); text-decoration: underline; }
+
+/* ---------- the problem set (#/chNN/problems) ----------
+   Four difficulty tiers of exercises, each with its worked solution folded
+   away. The tier colours reuse the existing semantic tokens rather than
+   introducing four more: green/amber/red already mean easy/careful/hard
+   everywhere else in the app, and "applied" borrows the accent because it is
+   not harder, it is a different kind of question. */
+.prob-section + .prob-section { margin-top: 14px; }
+.prob-section .card-head { align-items: baseline; gap: 10px; flex-wrap: wrap; }
+/* Same reason the catalogue rows needed a rule: an <a> with no style of its own
+   falls through to the browser's blue-and-purple, which belongs to no palette
+   this app has. */
+/* 44px tall and named by its section: ten links reading "Read the section" are
+   ten identical rows in a screen reader's link list, and a 21px target is not a
+   thumb target. */
+.prob-read { font-size: 13px; font-weight: 550; white-space: nowrap;
+             color: var(--accent); text-decoration: none;
+             display: inline-flex; align-items: center; min-height: 44px; }
+.prob-read:hover, .prob-read:focus-visible { text-decoration: underline; }
+.prob-note { margin: 6px 0 0; color: var(--ink-soft); font-size: 14.5px; }
+
+.prob-tier { margin-top: 18px; }
+.tier-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+             font-size: 12.5px; font-weight: 700; letter-spacing: .07em;
+             text-transform: uppercase; }
+.tier-head span { font-size: 11.5px; font-weight: 600; letter-spacing: 0;
+                  padding: 1px 7px; border-radius: 999px;
+                  background: var(--code-bg); color: var(--ink-faint); }
+.tier-head::before { content: ""; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.tier-warmup    { color: var(--green); }  .tier-warmup::before    { background: var(--green); }
+.tier-standard  { color: var(--accent); } .tier-standard::before  { background: var(--accent); }
+.tier-challenge { color: var(--red); }    .tier-challenge::before { background: var(--red); }
+.tier-applied   { color: var(--amber); }  .tier-applied::before   { background: var(--amber); }
+
+/* The number is a hanging marker, not a list bullet: problems are referred to
+   by number ("stuck on 14") and the number has to stay findable while the
+   student scrolls past a solution three screens long. */
+.prob { display: grid; grid-template-columns: 30px 1fr; gap: 10px;
+        padding: 12px 0; border-top: 1px solid var(--line); }
+.prob:first-of-type { border-top: 0; }
+.prob-n { font-variant-numeric: tabular-nums; font-weight: 650;
+          color: var(--ink-faint); font-size: 14.5px; padding-top: 1px; }
+/* .md is a card in its own right — panel, border, 36px of padding — because it
+   was written for the notes, which are the whole page. Here it is a paragraph
+   inside a card that already exists, so it keeps the typography and drops the
+   container; otherwise every problem renders as a box inside a box. */
+.prob .md, .prob-note, .prob-sol .md {
+  background: none; border: 0; border-radius: 0; padding: 0; box-shadow: none;
+}
+.prob-body > .md > :first-child { margin-top: 0; }
+.prob-body > .md > :last-child { margin-bottom: 0; }
+
+.prob-sol { margin-top: 10px; }
+.prob-sol > summary { display: inline-flex; align-items: center; gap: 7px;
+                      min-height: 44px; padding: 0 14px; border-radius: 999px;
+                      border: 1px solid var(--line-ui); background: var(--panel);
+                      color: var(--ink-soft); font-size: 13.5px; font-weight: 600;
+                      cursor: pointer; list-style: none; user-select: none; }
+.prob-sol > summary::-webkit-details-marker { display: none; }
+.prob-sol > summary::before { content: "▸"; font-size: 11px; }
+.prob-sol[open] > summary::before { content: "▾"; }
+.prob-sol > summary:hover { color: var(--ink); border-color: var(--ink-faint); }
+.prob-sol[open] > summary { color: var(--ink); margin-bottom: 4px; }
+.prob-sol > .md { padding: 2px 0 4px 13px; border-left: 2px solid var(--accent-line);
+                  border-radius: 0; }
+
+/* ---------- graded problem parts ----------
+ * A graded bank puts an answer box under every part. The controls reuse .btn and
+ * .feedback from the quiz so a student meets one visual language, not two, and
+ * every edge a student operates uses --line-ui (3:1) rather than --line. */
+.prob-title { margin: 0 0 6px; font-size: 15.5px; font-weight: 650; color: var(--ink); }
+
+.prob-fig { margin: 12px 0; padding: 14px; border: 1px solid var(--line);
+            border-radius: 10px; background: var(--panel); color: var(--ink);
+            /* Its own scroller, for the same reason a display formula has one. */
+            overflow-x: auto; overscroll-behavior-x: contain; }
+.prob-fig svg { display: block; width: 100%; height: auto; }
+
+.prob-formulas { margin: 10px 0; padding-left: 13px;
+                 border-left: 2px solid var(--accent-line); }
+.prob-formulas .md { background: none; border: 0; padding: 0; box-shadow: none; }
+
+/* .prob is a grid whose text column is `1fr`, and `1fr` carries an automatic
+   minimum: one unbreakable line — an inline formula, a long substitution — sets
+   the column's min-content width and widens the whole document rather than
+   scrolling inside the card. Measured at 375px before this line: 674px of page
+   for a 375px viewport, which is the sideways scroll that reached students in
+   two earlier courses. `min-width: 0` lets the column be narrower than its
+   content; the scrollers below give that content somewhere to go.
+   Same reasoning as `.md p { overflow-x: auto }` above — these paragraphs carry
+   inline maths and are NOT inside a `.md`, so that rule never reached them. */
+.prob-body { min-width: 0; }
+.p-prompt, .sol-step > p, .p-hintline, .p-feedback p, .p-solution li { overflow-x: auto; }
+
+.prob-part { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.prob-part:first-of-type { border-top: 0; }
+.p-prompt { margin: 0 0 8px; font-size: 15px; }
+.p-label { font-weight: 700; color: var(--accent); margin-right: 4px; }
+
+.p-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.p-field { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.p-input { min-height: 44px; padding: 0 12px; border-radius: 8px;
+           border: 1px solid var(--line-ui); background: var(--panel);
+           color: var(--ink); font: inherit; font-size: 15px; width: 190px; }
+.p-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.p-text { width: 100%; min-height: 76px; padding: 10px 12px; resize: vertical; }
+.p-unit { color: var(--ink-faint); font-size: 13.5px; }
+
+.p-feedback:not(:empty), .p-hints:not(:empty), .p-solution:not(:empty) { margin-top: 10px; }
+.p-hintline { margin: 0 0 8px; padding: 9px 12px; font-size: 14.5px;
+              border-left: 3px solid var(--amber); background: var(--amber-soft);
+              color: var(--ink); border-radius: 0 8px 8px 0; }
+
+.sol-steps { padding-left: 13px; border-left: 2px solid var(--accent-line); }
+.sol-step { margin-bottom: 12px; }
+.sol-step > p { margin: 0 0 6px; font-size: 14.5px; }
+.sol-step .md { background: none; border: 0; padding: 0; box-shadow: none;
+                overflow-x: auto; }
+.sol-step-name { display: block; margin-bottom: 4px; font-size: 11px;
+                 font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+                 color: var(--ink-faint); }
+
+@media (max-width: 560px) {
+  .prob { grid-template-columns: 24px 1fr; gap: 8px; }
+  .prob-sol > .md { padding-left: 10px; }
+  /* At 375px a 190px box plus three buttons wraps into four rows; the box taking
+     the full width and the buttons sharing the next line reads as one control. */
+  .p-input { width: 100%; }
+  .prob-fig { padding: 10px; }
+  /* A ray diagram authored 640 units wide, squeezed into a 341px column, renders
+     its 13px labels at 5px — present, and unreadable. Held at a legible size and
+     panned instead: measured at 375px, "d = 0.150 mm" goes 5px → 11.4px, which is
+     the floor at which the dimension labels can be read at arm's length. The
+     figure keeps its proportions and the reader pans; a diagram authored much
+     wider than 640 units would make that pan long, which is a spec rule for the
+     figures rather than something this stylesheet can fix. */
+  .prob-fig svg { min-width: 560px; }
+}

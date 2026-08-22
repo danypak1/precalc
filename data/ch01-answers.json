@@ -1,0 +1,218 @@
+{
+ "_note": "Answer key for module ch01. Every wrong option carries a diagnostic naming the specific misunderstanding it comes from, not just 'this is wrong' — the point of a distractor is that somebody would choose it for a reason. 'review' points at a numbered section of 01-notes.md.",
+ "mcq": {
+  "A1": {
+   "answer": "c",
+   "review": "1.1",
+   "explanation": "When the variable cancels off both sides, the line that is left decides everything. $-8=-8$ is true for every value of $x$, so the equation is an **identity** and its solution set is all real numbers. Had it collapsed to something false, such as $-8=-10$, the equation would have been a contradiction with no solution.",
+   "diagnostics": {
+    "a": "You read the disappearance of $x$ as 'x is zero'. It is not: $x$ vanished because the two sides were the same expression all along, which says something about every value of $x$ rather than about one of them.",
+    "b": "That is the other outcome of the same collapse. A contradiction leaves a **false** statement behind ($-8=-10$); here the leftover line is true, which is the opposite verdict.",
+    "d": "You have taken the last number on the page as the answer. $-8$ is a constant that appeared on both sides and cancelled; it was never a value of $x$."
+   }
+  },
+  "A2": {
+   "answer": "d",
+   "review": "1.1",
+   "explanation": "Multiplying by the LCD multiplies both sides by an expression that can equal zero, and that step is not reversible. It can hand you a value which solves the cleared equation but makes a denominator of the original zero — an **extraneous solution**. Only substituting back into the original equation can catch it.",
+   "diagnostics": {
+    "a": "True enough as advice, but a wrong LCD makes the algebra wrong from the start; it is not the reason a *correct* piece of algebra can still produce a false root.",
+    "b": "That is a real hazard, but it is the opposite failure: dividing by a variable **loses** solutions, and no check of the answers you kept would ever reveal one you never wrote down.",
+    "c": "The distributive property applies perfectly well to fractional terms. Nothing about this step is invalid; the trouble is that it is not reversible."
+   }
+  },
+  "A3": {
+   "answer": "b",
+   "review": "1.3",
+   "explanation": "Rewrite each radical in $i$ form first: $\\sqrt{-4}=2i$ and $\\sqrt{-25}=5i$. Then $(2i)(5i)=10i^{2}=-10$.",
+   "diagnostics": {
+    "a": "You used $\\sqrt{a}\\cdot\\sqrt{b}=\\sqrt{ab}$ to get $\\sqrt{100}=10$. That rule needs both radicands to be non-negative, and this is exactly the case it fails on.",
+    "c": "You converted only one of the two radicals to $i$ form. Both carry an $i$, and the two of them multiply to $i^{2}=-1$, which is what turns the answer real.",
+    "d": "The sign is right but the $i$ should not survive: $i\\cdot i=i^{2}=-1$ is a real number, so the product of two pure imaginaries is always real."
+   }
+  },
+  "A4": {
+   "answer": "c",
+   "review": "1.3",
+   "explanation": "The powers of $i$ repeat every four. Divide the exponent by 4 and keep the remainder: $35=4\\cdot8+3$, so $i^{35}=i^{3}=-i$.",
+   "diagnostics": {
+    "a": "$i^{n}=1$ happens when the remainder is 0, that is when $n$ is a multiple of 4. $35$ is not.",
+    "b": "A remainder of 2 gives $-1$. Dividing 35 by 4 leaves 3, not 2 — check the arithmetic rather than the rule.",
+    "d": "A remainder of 1 gives $i$. You are one step short in the cycle $i,-1,-i,1$."
+   }
+  },
+  "A5": {
+   "answer": "b",
+   "review": "1.7",
+   "explanation": "A greater-than absolute value asks which points are **far** from zero, and far is possible in two directions: $3x-6>9$ **or** $3x-6<-9$, giving $x>5$ or $x<-1$. Two rays, joined with $\\cup$, and both ends open because the inequality is strict.",
+   "diagnostics": {
+    "a": "You split it the way a less-than is split, $-9<3x-6<9$. That produces exactly the set of points that are *close* to the centre — the complement of the right answer.",
+    "c": "The two boundary numbers have been swapped. Solving $3x-6=9$ gives $5$ and $3x-6=-9$ gives $-1$; $-5$ and $1$ come from dividing before adding the 6.",
+    "d": "Two mistakes at once: the between-shape belongs to a less-than, and the square brackets belong to $\\ge$ rather than $>$."
+   }
+  },
+  "A6": {
+   "answer": "a",
+   "review": "1.4",
+   "explanation": "The zero product property says that if $mn=0$ then $m=0$ or $n=0$. It is a fact about zero and nothing else: a product equal to 5 can be made from endless pairs of numbers. Rearrange to $x^{2}+4x-5=0$ first, then factor as $(x+5)(x-1)=0$, giving $x=-5$ or $x=1$.",
+   "diagnostics": {
+    "b": "Expanding is one legitimate route, but it is not the error. The error is applying a zero-only rule to an equation whose right side is 5.",
+    "c": "Dividing by $x$ is a worse move, not a fix: it destroys the root $x=0$ whenever there is one, and here it leaves a fraction behind.",
+    "d": "The square root property needs a squared expression isolated on one side, which this equation does not have. The method is not the problem; the missing zero is."
+   }
+  },
+  "A7": {
+   "answer": "b",
+   "review": "1.4",
+   "explanation": "$\\Delta=b^{2}-4ac=(-12)^{2}-4(4)(9)=144-144=0$. A zero discriminant means **two repeated solutions** — the two roots have landed on the same number, here $x=\\tfrac32$, because $4x^{2}-12x+9=(2x-3)^{2}$.",
+   "diagnostics": {
+    "a": "Two distinct real solutions need $\\Delta>0$. Recompute: $4\\cdot4\\cdot9$ is $144$, exactly what $(-12)^{2}$ gives, so the difference is zero rather than positive.",
+    "c": "Nonreal solutions need $\\Delta<0$. You may have subtracted in the wrong order; $\\Delta$ is $b^{2}$ minus $4ac$, not the other way round.",
+    "d": "This case never happens for a quadratic with real coefficients: nonreal roots always arrive as a conjugate pair, so they come two at a time or not at all."
+   }
+  },
+  "A8": {
+   "answer": "c",
+   "review": "1.5",
+   "explanation": "'Shorter than the hypotenuse $x$' makes the legs $x-3$ and $x-6$. The Pythagorean theorem puts the two **legs** on the left and the hypotenuse on the right, each squared: $(x-3)^{2}+(x-6)^{2}=x^{2}$.",
+   "diagnostics": {
+    "a": "You have added the lengths rather than their squares. Two sides of a triangle summing to the third would flatten it into a straight line.",
+    "b": "The hypotenuse is in the wrong place. It is $x$ — the longest side, the one opposite the right angle — so $x^{2}$ belongs alone on one side of the equation.",
+    "d": "The left side is squared and the right side is not. Every term in the Pythagorean relation is an area, so $x$ must be squared too."
+   }
+  },
+  "A9": {
+   "answer": "d",
+   "review": "1.6",
+   "explanation": "Squaring is not reversible, so both candidates must be tested in the original. $x=1$: the left side is $\\sqrt{4}=2$, the right side is $-2$ — a principal square root is never negative, so $1$ is extraneous. $x=6$: $\\sqrt9=3$ and $6-3=3$. ✓ The solution set is $\\{6\\}$.",
+   "diagnostics": {
+    "a": "You kept the candidate that fails and dropped the one that works. Substitute both: only $x=6$ makes the two sides agree.",
+    "b": "Both candidates solve the *squared* equation, which is why they appeared. Squaring can create roots the original never had, and here it created one.",
+    "c": "One of them does work. $x=6$ gives $\\sqrt9=3$ on the left and $3$ on the right, so the solution set is not empty."
+   }
+  },
+  "A10": {
+   "answer": "a",
+   "review": "1.6",
+   "explanation": "$\\lvert u\\rvert=\\lvert w\\rvert$ means the two expressions are equal or exact opposites: $u=w$ or $u=-w$. The second case negates the **whole** of $x+4$, brackets and all: $2x-1=-(x+4)=-x-4$.",
+   "diagnostics": {
+    "b": "You negated only the first term of $x+4$. The minus sign is applied to the entire expression, so the $+4$ becomes $-4$ as well.",
+    "c": "The signs have been moved around inside the left-hand expression instead. It is the right-hand side that gets negated; the left side never changes.",
+    "d": "Dropping the second case loses solutions. Here it would lose $x=-1$ and report only $x=3$."
+   }
+  },
+  "A11": {
+   "answer": "d",
+   "review": "1.7",
+   "explanation": "'or' means union, so the two pieces are joined with $\\cup$. Both $2$ and $7$ are included because the inequalities are $\\le$ and $\\ge$, so those ends take square brackets — but the infinite ends always take round ones.",
+   "diagnostics": {
+    "a": "$\\cap$ is intersection, which is what 'and' means. These two sets have nothing in common, so this expression names the empty set.",
+    "b": "The bracket on infinity is the error. $\\infty$ is not a number and can never be included, so it takes a round bracket every time.",
+    "c": "That is the set of values **between** 2 and 7 — the part the solution deliberately leaves out."
+   }
+  },
+  "A12": {
+   "answer": "a",
+   "review": "1.5",
+   "explanation": "$w^{2}+6w-40=(w+10)(w-4)=0$ gives $w=-10$ or $w=4$. The variable was defined as a width in metres, and a width cannot be negative, so $w=4$ metres is the answer.",
+   "diagnostics": {
+    "b": "That root solves the equation but not the problem. Once the variable has been defined as a length, a negative value has to be discarded on the spot.",
+    "c": "Sign slip in the factoring: $(w+10)(w-4)$ expands to $w^{2}+6w-40$, while $(w-10)(w+4)$ would give $w^{2}-6w-40$.",
+    "d": "Both numbers solve the equation, but only one answers the question. Reporting a negative width is the mistake §1.5 exists to prevent."
+   }
+  }
+ },
+ "short": {
+  "B1": {
+   "review": "1.1",
+   "model": "Multiply every term on both sides by the LCD, which is 6: $2(2x-1)-(x+4)=3$. Expanding gives $4x-2-x-4=3$, so $3x-6=3$ and $x=3$. Check: $\\dfrac{5}{3}-\\dfrac{7}{6}=\\dfrac{10-7}{6}=\\dfrac12$. ✓ The solution set is $\\{3\\}$.",
+   "marks": [
+    "LCD of 6 applied to every term on both sides, including the $\\tfrac12$",
+    "the subtracted numerator kept in brackets, so $-(x+4)$ becomes $-x-4$",
+    "solution $x=3$, stated as a solution set or as $x=3$"
+   ]
+  },
+  "B2": {
+   "review": "1.1",
+   "model": "The restriction is $x\\ne4$, since $x-4$ is a denominator. Multiplying through by $x-4$ gives $3+2(x-4)=x-1$, so $2x-5=x-1$ and $x=4$. That is the excluded value, so it is extraneous and the equation has **no solution**: the solution set is $\\{\\ \\}$.",
+   "marks": [
+    "restriction $x\\ne4$ written down before solving",
+    "correct algebra after multiplying by the LCD, reaching the candidate $x=4$",
+    "candidate rejected as extraneous and the answer given as no solution"
+   ]
+  },
+  "B3": {
+   "review": "1.3",
+   "model": "Multiply top and bottom by the conjugate $2-3i$: $\\dfrac{(5-i)(2-3i)}{(2+3i)(2-3i)}$. The numerator is $10-15i-2i+3i^{2}=7-17i$; the denominator is $2^{2}+3^{2}=13$. So the answer in standard form is $\\dfrac{7}{13}-\\dfrac{17}{13}i$.",
+   "marks": [
+    "multiplied top and bottom by the conjugate of the denominator",
+    "$i^{2}$ replaced by $-1$ when expanding the numerator",
+    "answer split into a real part and an imaginary part, not left as one fraction"
+   ]
+  },
+  "B4": {
+   "review": "1.3",
+   "model": "$\\sqrt{-8}\\cdot\\sqrt{-2}=(2i\\sqrt2)(i\\sqrt2)=2i^{2}\\cdot2=-4$. The rule $\\sqrt{a}\\sqrt{b}=\\sqrt{ab}$ requires $a$ and $b$ to be non-negative, so it may not be used on two negative radicands — it would give $\\sqrt{16}=4$, the wrong sign. For the power, $i^{22}=i^{20}\\cdot i^{2}=-1$, so $i^{-22}=\\dfrac{1}{-1}=-1$.",
+   "marks": [
+    "both radicals converted to $i$ form before multiplying, giving $-4$",
+    "the reason stated: the product rule for radicals needs non-negative radicands",
+    "$i^{-22}=-1$, via the positive power and then the reciprocal"
+   ]
+  },
+  "B5": {
+   "review": "1.4",
+   "model": "With $a=3$, $b=-2$, $c=-4$: $x=\\dfrac{2\\pm\\sqrt{4+48}}{6}=\\dfrac{2\\pm\\sqrt{52}}{6}$. Since $\\sqrt{52}=2\\sqrt{13}$, this is $\\dfrac{2\\pm2\\sqrt{13}}{6}=\\dfrac{1\\pm\\sqrt{13}}{3}$.",
+   "marks": [
+    "$a$, $b$ and $c$ identified with their signs and substituted correctly",
+    "$\\sqrt{52}$ simplified to $2\\sqrt{13}$",
+    "common factor of 2 cancelled from every term, giving $\\dfrac{1\\pm\\sqrt{13}}{3}$"
+   ]
+  },
+  "B6": {
+   "review": "1.4",
+   "model": "$\\Delta=(-6)^{2}-4(2)(5)=36-40=-4$, which is negative, so the discriminant predicted two nonreal solutions. The formula gives $x=\\dfrac{6\\pm\\sqrt{-4}}{4}=\\dfrac{6\\pm2i}{4}=\\dfrac{3}{2}\\pm\\dfrac{1}{2}i$.",
+   "marks": [
+    "discriminant computed as $-4$ and read as two nonreal solutions",
+    "$\\sqrt{-4}$ written as $2i$ rather than left as an error",
+    "both solutions given in standard form, a conjugate pair"
+   ]
+  },
+  "B7": {
+   "review": "1.5",
+   "model": "Let $w$ be the width in metres; the length is $w+4$. Then $w(w+4)=96$, so $w^{2}+4w-96=0$ and $(w+12)(w-8)=0$, giving $w=8$ or $w=-12$. A width cannot be negative, so $w=8$: the garden is $8$ m by $12$ m.",
+   "marks": [
+    "variable defined in words and with its unit, and the length written as $w+4$",
+    "equation $w^{2}+4w-96=0$ formed and solved",
+    "negative root discarded because a width cannot be negative, and both dimensions stated"
+   ]
+  },
+  "B8": {
+   "review": "1.6",
+   "model": "Isolate the radical: $\\sqrt{3x+7}=x+1$. Squaring gives $3x+7=x^{2}+2x+1$, so $x^{2}-x-6=0$ and $(x-3)(x+2)=0$, with candidates $x=3$ and $x=-2$. Check $x=3$: $\\sqrt{16}-1=3$. ✓ Check $x=-2$: $\\sqrt{1}-1=0$, but the right side is $-2$. ✗ The solution set is $\\{3\\}$.",
+   "marks": [
+    "radical isolated before squaring",
+    "quadratic solved to the two candidates $3$ and $-2$",
+    "both candidates checked in the original, and $-2$ rejected as extraneous"
+   ]
+  },
+  "B9": {
+   "review": "1.6",
+   "model": "(a) Isolate first: $2\\lvert x-5\\rvert=8$, so $\\lvert x-5\\rvert=4$ and $x-5=4$ or $x-5=-4$, giving $x=9$ or $x=1$. (b) Isolating gives $\\lvert4x+1\\rvert=-5$. An absolute value is a distance and can never be negative, so there is **no solution**.",
+   "marks": [
+    "absolute value isolated before splitting in part (a)",
+    "both cases taken in (a), giving $x=9$ and $x=1$",
+    "part (b) answered as no solution, with the reason that a distance is never negative"
+   ]
+  },
+  "B10": {
+   "review": "1.7",
+   "model": "Multiply all three parts by 4: $-4\\le3-2x<8$. Subtract 3: $-7\\le-2x<5$. Divide by $-2$, reversing **both** symbols: $\\tfrac72\\ge x>-\\tfrac52$, which reads $-\\tfrac52<x\\le\\tfrac72$. The graph is an open circle at $-\\tfrac52$, a closed circle at $\\tfrac72$ and shading between them; in set-builder notation $\\left\\{x\\mid-\\tfrac52<x\\le\\tfrac72\\right\\}$; in interval notation $\\left(-\\tfrac52,\\tfrac72\\right]$.",
+   "marks": [
+    "the same operation applied to all three parts at each step",
+    "both inequality symbols reversed when dividing by $-2$",
+    "all three forms given: graph described, set-builder, and interval with the correct open and closed ends"
+   ]
+  }
+ },
+ "extended": {}
+}

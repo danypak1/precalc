@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Precalculus — Interactive</title>
+  <!-- ?v= is a cache buster. BUMP IT on every deploy, or returning students keep the
+       old JS/CSS and newly published modules stay invisible to them. -->
+  <link rel="stylesheet" href="styles.css?v=41">
+  <!-- Filled in by apply-config.py only when the course file says "math":"katex".
+       Left empty for every other course, which is what keeps one shell usable by
+       a course that has no formulas in it. -->
+  <!--gen:themeCss--><!--/gen-->
+  <!--gen:mathCss-->
+  <link rel="stylesheet" href="vendor/katex/katex.min.css?v=41">
+  <!--/gen-->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'><!--gen:icon-->ƒ<!--/gen--></text></svg>">
+</head>
+<body>
+  <button class="skip-link" id="skip-link">Skip to content</button>
+  <!-- Mobile only (<900px). On desktop the sidebar is always visible and this bar
+       is display:none, so the same nav markup serves both layouts. -->
+  <header class="topbar">
+    <button class="icon-btn" id="nav-toggle" aria-label="Open module list"
+            aria-expanded="false" aria-controls="sidebar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <a class="topbar-title" id="topbar-title" href="#/"><!--gen:title-->Precalculus<!--/gen--></a>
+    <a class="topbar-ring" id="topbar-ring" href="#/" title="Course progress"><span></span></a>
+  </header>
+  <div class="scrim" id="scrim" hidden></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Modules">
+      <a class="brand" href="#/">
+        <span class="brand-icon"><!--gen:icon-->ƒ<!--/gen--></span>
+        <span>
+          <strong><!--gen:title-->Precalculus<!--/gen--></strong>
+          <small><!--gen:subtitle-->College algebra and trigonometry, from R.3 to 6.5<!--/gen--></small>
+        </span>
+      </a>
+      <div id="course-progress" class="course-progress"></div>
+      <nav id="module-nav"></nav>
+      <!-- Course-wide destinations: the trainers, the mock exam, the mistakes pass.
+           They belong here rather than only on the home screen because the sidebar
+           is the one piece of markup present on every route — before this, a student
+           reading Module 07 could reach the trainers only by going back to the top
+           and hunting for a card. #module-nav is the flex child that scrolls, so
+           this block stays on screen at every scroll position. Filled by
+           renderToolNav(); a course whose shell lacks it simply gets no block. -->
+      <nav id="tool-nav" class="tool-nav" aria-label="Course tools"></nav>
+      <button class="theme-toggle" id="theme-toggle">
+        <span class="theme-ico" id="theme-ico" aria-hidden="true">◐</span>
+        <span id="theme-label">System theme</span>
+      </button>
+      <div class="sidebar-foot">
+        <a href="index.html">About the course</a> · what a key unlocks and what it costs.<br>
+        <!--gen:attribution-->Independent study guide for a first course in College Algebra and Trigonometry. Every explanation, worked example, practice question and problem is written for this course. Section numbering follows Miller &amp; Gerken, College Algebra and Trigonometry, the textbook the lecture course is taught from; where a question from a past model paper is discussed, it is named where it appears, and no worked example from that textbook is reproduced. Not affiliated with or endorsed by any university, instructor or publisher.<!--/gen-->
+      </div>
+    </aside>
+    <main class="main" id="main" tabindex="-1"></main>
+  </div>
+  <!-- Printing hides the sidebar, and the sidebar held the only attribution on the
+       page — so every chapter a student printed carried none. CC BY asks for the
+       credit to travel with the copy, and the printed copy is the one that gets
+       passed around. Screen-hidden, print-only. -->
+  <div class="print-credit">
+    <!--gen:attribution-->Independent study guide for a first course in College Algebra and Trigonometry. Every explanation, worked example, practice question and problem is written for this course. Section numbering follows Miller &amp; Gerken, College Algebra and Trigonometry, the textbook the lecture course is taught from; where a question from a past model paper is discussed, it is named where it appears, and no worked example from that textbook is reproduced. Not affiliated with or endorsed by any university, instructor or publisher.<!--/gen-->
+  </div>
+  <!-- Before md.js, which asks for `katex` at render time. -->
+  <!--gen:mathJs-->
+  <script src="vendor/katex/katex.min.js?v=41"></script>
+  <!--/gen-->
+  <script src="md.js?v=41"></script>
+  <script src="api.js?v=41"></script>
+  <script src="sims.js?v=41"></script>
+  <script src="app.js?v=41"></script>
+</body>
+</html>
