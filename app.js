@@ -23,13 +23,13 @@ const MODULES = [
   { id: "ch03", num: "03", title: "Polynomial and Rational Functions", ready: true, sections: 6,
     blurb: `The heaviest chapter of the final. Quadratics in vertex form and the eight-part question built on one, end behaviour and multiplicity, long and synthetic division with the remainder and factor theorems, the zeros of a polynomial including the complex ones, rational functions and their asymptotes, and sign charts for inequalities.`,
     topics: ["vertex form", "end behaviour and multiplicity", "polynomial division", "remainder and factor theorems", "zeros and conjugate pairs", "asymptotes", "sign charts"] },
-  { id: "ch04", num: "04", title: "Exponential and Logarithmic Functions", ready: false, sections: 5,
+  { id: "ch04", num: "04", title: "Exponential and Logarithmic Functions", ready: true, sections: 5,
     blurb: `One idea told twice: inverse functions first, then the exponential and the logarithm as each other's reflection across y = x. The properties that expand and contract a logarithm, and the two families of equation — same base, or take a logarithm of both sides — with the domain check that decides which answers survive.`,
     topics: ["inverse functions", "exponential functions", "logarithmic functions", "properties of logarithms", "exponential equations", "logarithmic equations"] },
-  { id: "ch05", num: "05", title: "Trigonometric Functions", ready: false, sections: 7,
+  { id: "ch05", num: "05", title: "Trigonometric Functions", ready: true, sections: 7,
     blurb: `Trigonometry built in the order the exam uses it: angles and radian measure, the right triangle, then any angle through a point on its terminal side and the reference angle that reduces every evaluation to a special angle. Then the unit circle, the graphs of sine and cosine with amplitude, period and phase shift, the other four graphs, and the inverse functions with their restricted ranges.`,
     topics: ["radian measure", "right-triangle ratios", "any angle and reference angles", "the unit circle", "amplitude period and phase shift", "graphs of tan sec csc cot", "inverse trigonometric functions"] },
-  { id: "ch06", num: "06", title: "Identities and Trigonometric Equations", ready: false, sections: 5,
+  { id: "ch06", num: "06", title: "Identities and Trigonometric Equations", ready: true, sections: 5,
     blurb: `The one chapter where memorising is unavoidable, and the one where a marker wants to see a chain of equalities rather than an answer. The fundamental identities and how a verification is written, sum and difference formulas, double-angle, power-reducing and half-angle, product-to-sum, and equations solved both over one turn of the circle and over all real numbers.`,
     topics: ["fundamental identities", "verifying an identity", "sum and difference formulas", "double-angle and half-angle", "power-reducing", "product to sum", "general solutions"] },
 ];
@@ -75,7 +75,7 @@ const CONTACT = "https://t.me/danypak";
 const DEVICES_PHRASE = "two devices";
 const DEVICES_EXAMPLE = "your laptop and your phone";
 const ONE_TOO_MANY = "a third";
-const COURSE_DOCS = [{"id": "exam-map", "title": "Exam map — what the midterm and the final actually ask", "free": false}, {"id": "sheet-ch00", "title": "Cheat sheet — algebra review", "free": false}, {"id": "sheet-ch01", "title": "Cheat sheet — equations and inequalities", "free": false}, {"id": "sheet-ch02", "title": "Cheat sheet — graphs and functions", "free": false}, {"id": "sheet-ch03", "title": "Cheat sheet — polynomial and rational functions", "free": false}];
+const COURSE_DOCS = [{"id": "exam-map", "title": "Exam map — what the midterm and the final actually ask", "free": false}, {"id": "sheet-ch00", "title": "Cheat sheet — algebra review", "free": false}, {"id": "sheet-ch01", "title": "Cheat sheet — equations and inequalities", "free": false}, {"id": "sheet-ch02", "title": "Cheat sheet — graphs and functions", "free": false}, {"id": "sheet-ch03", "title": "Cheat sheet — polynomial and rational functions", "free": false}, {"id": "sheet-ch04", "title": "Cheat sheet — exponential and logarithmic functions", "free": false}, {"id": "sheet-ch05", "title": "Cheat sheet — trigonometric functions", "free": false}, {"id": "sheet-ch06", "title": "Cheat sheet — identities and trigonometric equations", "free": false}];
 /* ---- end generated ---- */
 
 /* A course tree whose app.js was generated before `surfaces` existed has no such
