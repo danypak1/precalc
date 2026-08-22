@@ -11,16 +11,16 @@
    The summaries used to do this job, but a summary is the chapter distilled, and
    giving eleven of those away is giving away most of what the key is for. */
 const MODULES = [
-  { id: "ch00", num: "00", title: "Algebra Review", ready: false, sections: 4,
+  { id: "ch00", num: "00", title: "Algebra Review", ready: true, sections: 4,
     blurb: `The four skills every later chapter silently assumes: rational exponents and radicals, polynomial arithmetic, factoring, and rational expressions. The midterm opens with two whole questions on factoring and on simplifying rational expressions, and the algebra here is what a lost mark in chapter 3 or 6 usually turns out to be.`,
     topics: ["rational exponents", "simplifying radicals", "polynomial arithmetic", "special products", "factoring patterns", "rational expressions and LCDs"] },
   { id: "ch01", num: "01", title: "Equations and Inequalities", ready: true, sections: 6,
     blurb: `Everything that ends in 'solve': linear and rational equations, complex numbers and i, quadratics by four different methods and which one to reach for, equations in quadratic form, radical and absolute-value equations — and the inequalities whose answers are written in interval and set-builder notation.`,
     topics: ["linear and rational equations", "complex numbers", "quadratic equations", "applications", "radical and absolute-value equations", "interval notation"] },
-  { id: "ch02", num: "02", title: "Graphs and Functions", ready: false, sections: 8,
+  { id: "ch02", num: "02", title: "Graphs and Functions", ready: true, sections: 8,
     blurb: `The chapter the rest of the course is written in. The plane, distance and midpoint, circles by completing the square, what makes a relation a function and where its domain stops, lines in all their forms, the six transformations of a graph, reading a graph for maxima and intervals, and the algebra and composition of functions.`,
     topics: ["distance and midpoint", "circles", "functions and domain", "lines", "transformations", "piecewise functions", "difference quotient", "composition"] },
-  { id: "ch03", num: "03", title: "Polynomial and Rational Functions", ready: false, sections: 6,
+  { id: "ch03", num: "03", title: "Polynomial and Rational Functions", ready: true, sections: 6,
     blurb: `The heaviest chapter of the final. Quadratics in vertex form and the eight-part question built on one, end behaviour and multiplicity, long and synthetic division with the remainder and factor theorems, the zeros of a polynomial including the complex ones, rational functions and their asymptotes, and sign charts for inequalities.`,
     topics: ["vertex form", "end behaviour and multiplicity", "polynomial division", "remainder and factor theorems", "zeros and conjugate pairs", "asymptotes", "sign charts"] },
   { id: "ch04", num: "04", title: "Exponential and Logarithmic Functions", ready: false, sections: 5,
@@ -75,7 +75,7 @@ const CONTACT = "https://t.me/danypak";
 const DEVICES_PHRASE = "two devices";
 const DEVICES_EXAMPLE = "your laptop and your phone";
 const ONE_TOO_MANY = "a third";
-const COURSE_DOCS = [{"id": "exam-map", "title": "Exam map — what the midterm and the final actually ask", "free": false}, {"id": "sheet-ch01", "title": "Cheat sheet — equations and inequalities", "free": false}];
+const COURSE_DOCS = [{"id": "exam-map", "title": "Exam map — what the midterm and the final actually ask", "free": false}, {"id": "sheet-ch00", "title": "Cheat sheet — algebra review", "free": false}, {"id": "sheet-ch01", "title": "Cheat sheet — equations and inequalities", "free": false}, {"id": "sheet-ch02", "title": "Cheat sheet — graphs and functions", "free": false}, {"id": "sheet-ch03", "title": "Cheat sheet — polynomial and rational functions", "free": false}];
 /* ---- end generated ---- */
 
 /* A course tree whose app.js was generated before `surfaces` existed has no such

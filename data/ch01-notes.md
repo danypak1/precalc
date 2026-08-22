@@ -406,7 +406,11 @@ gravity has height
 $$s=-\tfrac12gt^{2}+v_{0}t+s_{0}$$
 
 where $g$ is the gravitational acceleration ($9.8\ \text{m/s}^{2}$), $v_{0}$ the
-initial velocity and $s_{0}$ the initial height. A rocket is launched from a pad
+initial velocity and $s_{0}$ the initial height. Some questions hand you the
+model with the number already in it — chapter 3's projectile problems are
+written $h(t)=-5t^{2}+\dots$, which is $g\approx10$. **A model printed in the
+question is a given:** solve the one you are handed, and never substitute your
+own $g$ into it. A rocket is launched from a pad
 $3$ m above the ground at $24.5$ m/s. When is it $20$ m up?
 
 $$-4.9t^{2}+24.5t+3=20\quad\Longrightarrow\quad 4.9t^{2}-24.5t+17=0$$
