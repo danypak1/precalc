@@ -1443,6 +1443,136 @@ const SIMS = (() => {
       ];
     },
 
+    /* "I checked it at π/4, so it is an identity" (§6.1, ch06). Six candidate
+       equations, three of them genuine and three engineered to be true at the
+       angle a student would test. Both sides are drawn, and the two verdicts —
+       agrees here, agrees everywhere — sit next to each other so the first can
+       say yes while the second says no. */
+    identityOrNot(ctx, p) {
+      const PI = Math.PI;
+      const which = clamp(Math.round(p.candidate), 1, 6);
+      const tw = clamp(Math.round(p.x), 0, 24);        // the test angle, in twelfths of π
+      const t = tw * PI / 12;
+
+      const sec = a => 1 / Math.cos(a), cot = a => Math.cos(a) / Math.sin(a);
+      const CANDIDATES = [
+        { L: "sin(-x)·cot(-x)", R: "cos x",
+          l: a => Math.sin(-a) * cot(-a), r: a => Math.cos(a) },
+        { L: "sec x - cos x", R: "tan x·sin x",
+          l: a => sec(a) - Math.cos(a), r: a => Math.tan(a) * Math.sin(a) },
+        { L: "cos⁴x - sin⁴x", R: "1 - 2sin²x",
+          l: a => Math.pow(Math.cos(a), 4) - Math.pow(Math.sin(a), 4), r: a => 1 - 2 * Math.pow(Math.sin(a), 2) },
+        { L: "sin x + cos x", R: "√2·tan x",
+          l: a => Math.sin(a) + Math.cos(a), r: a => Math.SQRT2 * Math.tan(a) },
+        { L: "tan x", R: "sin x + (1 - √2/2)",
+          l: a => Math.tan(a), r: a => Math.sin(a) + (1 - Math.SQRT2 / 2) },
+        { L: "sin 2x", R: "2sin x",
+          l: a => Math.sin(2 * a), r: a => 2 * Math.sin(a) },
+      ];
+      const C = CANDIDATES[which - 1];
+      const val = f => { const y = f(t); return isFinite(y) && Math.abs(y) < 1e12 ? y : null; };
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const piFrac = k => {
+        if (k === 0) return "0";
+        const g = gcd(Math.abs(k), 12) || 1, N = Math.abs(k) / g, D = 12 / g;
+        return (k < 0 ? "-" : "") + (N === 1 ? "pi" : N + "pi") + (D === 1 ? "" : "/" + D);
+      };
+      /* Values are recognised against a table rather than derived: the sides of
+         these equations combine surds in ways no general simplifier here would
+         get right, and a wrong "exact" value is worse than an honest decimal. */
+      const R2 = Math.SQRT2, R3 = Math.sqrt(3);
+      const EXACT = [[0, "0"], [1, "1"], [-1, "-1"], [0.5, "1/2"], [-0.5, "-1/2"],
+        [R2 / 2, "√2/2"], [-R2 / 2, "-√2/2"], [R3 / 2, "√3/2"], [-R3 / 2, "-√3/2"],
+        [R3, "√3"], [-R3, "-√3"], [R3 / 3, "√3/3"], [-R3 / 3, "-√3/3"],
+        [2, "2"], [-2, "-2"], [R2, "√2"], [-R2, "-√2"], [2 * R3 / 3, "2√3/3"], [-2 * R3 / 3, "-2√3/3"],
+        [1 - R2 / 2, "1 - √2/2"]];
+      const show = y => {
+        if (y === null) return "undefined";
+        for (const [v, txt] of EXACT) if (Math.abs(y - v) < 1e-9) return txt;
+        return fmt(y, 3);
+      };
+
+      /* Sampled rather than proved: where both sides are defined and finite, the
+         largest gap decides. An identity has a gap at the level of floating-point
+         noise; an impostor parts company by a visible amount somewhere. */
+      let worst = 0, worstAt = null, firstAt = null;
+      for (let i = 0; i <= 800; i++) {
+        const a = 2 * PI * i / 800;
+        const L = C.l(a), Rv = C.r(a);
+        /* Samples near an asymptote are skipped. Left in, the widest gap is
+           whatever the sampling grid happened to catch beside a pole — a number
+           that changes with the grid, is far outside the drawn window, and says
+           nothing about where the two curves actually part. */
+        if (!isFinite(L) || !isFinite(Rv) || Math.abs(L) > 8 || Math.abs(Rv) > 8) continue;
+        const gap = Math.abs(L - Rv);
+        if (gap > worst) { worst = gap; worstAt = a; }
+        if (gap > 1e-6 && firstAt === null) firstAt = a;
+      }
+      /* Also the first *special* angle where they part — that is the angle a
+         student would have tested, and "they differ at pi/12" is a usable fact
+         where "they differ at 0.016" is sampling noise wearing a number. */
+      let firstSpecial = null;
+      for (let k = 0; k <= 24 && firstSpecial === null; k++) {
+        const a = k * PI / 12;
+        const L = C.l(a), Rv = C.r(a);
+        if (!isFinite(L) || !isFinite(Rv) || Math.abs(L) > 50 || Math.abs(Rv) > 50) continue;
+        if (Math.abs(L - Rv) > 1e-6) firstSpecial = a;
+      }
+      const identity = worst < 1e-6;
+      const asAngle = a => {
+        if (a === null) return "—";
+        const k = a / (PI / 12);
+        return Math.abs(k - Math.round(k)) < 1e-6 ? piFrac(Math.round(k)) : fmt(a, 3);
+      };
+
+      const xmin = 0, xmax = 2 * PI, ymin = -4, ymax = 4;
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 28;
+      const v = {
+        w: W, h: H,
+        X: a => pad + ((a - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ymin) / (ymax - ymin)) * (H - 2 * pad),
+      };
+      const acc = css("--accent"), green = css("--green"), ink = css("--ink-faint"), red = css("--red");
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      for (let k = 0; k <= 8; k++) {
+        const a = k * PI / 4;
+        line(ctx, v.X(a), v.Y(0) - 4, v.X(a), v.Y(0) + 4, css("--line"), 1);
+        if (k % 2 === 0 && k) label(ctx, piFrac(k * 3), v.X(a), v.Y(0) + 16, css("--line"), "center", 10);
+      }
+      // A break, never a vertical stroke joining +∞ to −∞: the asymptote is not
+      // part of the graph, and drawing it as one is how a student learns it is.
+      const clip = f => a => { const y = f(a); return !isFinite(y) || Math.abs(y) > ymax ? null : y; };
+      plot(ctx, v, clip(C.r), xmin, xmax, green, 5);        // thick, underneath
+      plot(ctx, v, clip(C.l), xmin, xmax, acc, 1.8);        // thin, on top
+      label(ctx, "left side:  " + C.L, 12, 16, acc, "left", 12);
+      label(ctx, "right side: " + C.R, 12, 34, green, "left", 12);
+
+      line(ctx, v.X(t), v.Y(ymin), v.X(t), v.Y(ymax), ink, 1.2, [4, 4]);
+      const lv = val(C.l), rv = val(C.r);
+      if (lv !== null && Math.abs(lv) <= ymax) dot(ctx, v, t, lv, acc, false, 5.5);
+      if (rv !== null && Math.abs(rv) <= ymax) dot(ctx, v, t, rv, green, false, 5.5);
+      if (!identity && worstAt !== null) {
+        line(ctx, v.X(worstAt), v.Y(ymin), v.X(worstAt), v.Y(ymax), red, 1, [2, 3]);
+        label(ctx, "widest gap", v.X(worstAt), v.Y(ymax) + 12, red, "center", 10);
+      }
+
+      const agreeHere = lv === null || rv === null ? "one side is undefined here"
+        : Math.abs(lv - rv) < 1e-9 ? "yes" : "no";
+      return [
+        ["the candidate", C.L + "  =  " + C.R],
+        ["test angle", piFrac(tw) + "   (" + fmt(t, 3) + ")"],
+        ["left side here", show(lv)],
+        ["right side here", show(rv)],
+        ["agree here?", agreeHere],
+        ["agree everywhere?", identity ? "yes — an identity" : "no — they part company"],
+        ["widest gap found", identity ? "0 (to sampling precision)" : fmt(worst, 3) + " at x = " + asAngle(worstAt)],
+        ["the first special angle where they differ", identity ? "none — they never differ"
+          : firstSpecial !== null ? asAngle(firstSpecial) + "  (test that one instead)"
+            : "none of the special angles — but they still differ, at " + asAngle(firstAt)],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;

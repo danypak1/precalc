@@ -78,6 +78,12 @@
     "free": false
   },
   {
+    "id": "identity-or-impostor",
+    "module": "ch06",
+    "title": "Checking at one angle proves nothing",
+    "free": false
+  },
+  {
     "id": "both-answers",
     "module": "ch06",
     "title": "The general solution and the interval, side by side",
