@@ -24,6 +24,12 @@
     "free": false
   },
   {
+    "id": "cross-or-touch",
+    "module": "ch03",
+    "title": "Where the graph crosses, where it bounces, and where it goes",
+    "free": false
+  },
+  {
     "id": "build-the-sign-chart",
     "module": "ch03",
     "title": "The table that produces the answer",
@@ -33,6 +39,12 @@
     "id": "hole-or-asymptote",
     "module": "ch03",
     "title": "When a factor cancels, the domain does not change",
+    "free": false
+  },
+  {
+    "id": "one-curve-read-backwards",
+    "module": "ch04",
+    "title": "The logarithm is the exponential, read backwards",
     "free": false
   },
   {

@@ -1113,6 +1113,152 @@ const SIMS = (() => {
       ];
     },
 
+    /* Cross against touch, and end behaviour, as two consequences of one list of
+       exponents (§3.2, ch03). f(x) = s·(x+2)^m1·x^m2·(x−3)^m3, with a
+       multiplicity of 0 meaning the factor is absent — so a quadratic and a
+       quintic are the same scene. The verdict colour is driven by m % 2 and
+       never by a table of cases: a student who sets m = 3 must see exactly what
+       m = 1 gives. */
+    multiplicityWorkbench(ctx, p) {
+      const m1 = clamp(Math.round(p.m1), 0, 3), m2 = clamp(Math.round(p.m2), 0, 3), m3 = clamp(Math.round(p.m3), 0, 3);
+      const s = p.s === 0 ? 1 : p.s;
+      const ROOTS = [[-2, m1], [0, m2], [3, m3]];
+      const n = m1 + m2 + m3;
+      const f = x => s * Math.pow(x + 2, m1) * Math.pow(x, m2) * Math.pow(x - 3, m3);
+
+      const xmin = -4, xmax = 5, ymin = -6, ymax = 6;
+      /* Its own mapping. view() holds one scale on both axes, which is right
+         where a shape has to stay honest — a circle, a reflection — and wrong
+         here: the y-values are already scaled to fit (see below), so insisting
+         on square units only squeezes the picture into the middle third of the
+         canvas and wastes the width the zeros need. */
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 26;
+      const v = {
+        w: W, h: H,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ymin) / (ymax - ymin)) * (H - 2 * pad),
+      };
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      const acc = css("--accent"), ink = css("--ink-faint");
+
+      /* A multiplicity-3 factor leaves the window by a factor of thousands, so
+         the curve is scaled to fit — and the axis says so, rather than printing
+         y-values that are not the function's.
+
+         Scaled by the peak *between the outermost zeros*, not over the whole
+         window: measured over the window, one tail of a quartic sets the scale
+         and flattens the middle into a straight line, hiding the touch at the
+         origin that the scene exists to show. The tails then leave the top of
+         the frame, which is what the end-behaviour arrows are for. */
+      const zeroXs = ROOTS.filter(([, m]) => m > 0).map(([root]) => root);
+      const lo = zeroXs.length ? Math.min(...zeroXs) - 0.7 : xmin;
+      const hi = zeroXs.length ? Math.max(...zeroXs) + 0.7 : xmax;
+      let peak = 0;
+      for (let i = 0; i <= 400; i++) {
+        const x = lo + (hi - lo) * i / 400;
+        peak = Math.max(peak, Math.abs(f(x)));
+      }
+      const k = (n === 0 || peak < 1e-9) ? 1 : 4 / peak;
+      plot(ctx, v, x => { const y = k * f(x); return Math.abs(y) > ymax + 2 ? null : y; }, xmin, xmax, acc, 2.6);
+      if (Math.abs(k - 1) > 1e-9) label(ctx, "vertical scale adjusted (×" + fmt(k, 3) + ") — shape, not values", 12, 32, ink, "left", 10);
+
+      // End behaviour from the leading term alone, so the arrows are right even
+      // when the visible part of the curve has not turned yet.
+      const leftUp = n % 2 === 0 ? s > 0 : s < 0, rightUp = s > 0;
+      const endTxt = n === 0 ? "flat — this is a constant"
+        : (leftUp ? "up left" : "down left") + ", " + (rightUp ? "up right" : "down right");
+      if (n > 0) {
+        const ax = 0.55;
+        arrow(ctx, v.X(xmin + ax), v.Y(leftUp ? 3.4 : -3.4), v.X(xmin + 0.1), v.Y(leftUp ? 5.2 : -5.2), css("--green"), 2);
+        arrow(ctx, v.X(xmax - ax), v.Y(rightUp ? 3.4 : -3.4), v.X(xmax - 0.1), v.Y(rightUp ? 5.2 : -5.2), css("--green"), 2);
+      }
+
+      const verdict = m => (m === 0 ? "not a zero" : m % 2 === 1 ? "crosses (odd)" : "touches (even)");
+      for (const [root, m] of ROOTS) {
+        if (m === 0) continue;
+        dot(ctx, v, root, 0, m % 2 === 1 ? css("--red") : css("--green"), true, 5.5);
+        label(ctx, m % 2 === 1 ? "cross" : "touch", v.X(root), v.Y(0) + 18,
+          m % 2 === 1 ? css("--red") : css("--green"), "center", 10);
+      }
+
+      // Turning points actually on screen, counted from where the curve changes
+      // direction — next to the ceiling the degree allows.
+      let turns = 0, prev = null;
+      for (let i = 1; i <= 600; i++) {
+        const x0 = xmin + (xmax - xmin) * (i - 1) / 600, x1 = xmin + (xmax - xmin) * i / 600;
+        const d = Math.sign(f(x1) - f(x0));
+        if (d !== 0 && prev !== null && d !== prev) turns++;
+        if (d !== 0) prev = d;
+      }
+
+      const terms = ROOTS.filter(([, m]) => m > 0)
+        .map(([root, m]) => (root === 0 ? "x" : "(x " + (root < 0 ? "+ " + -root : "- " + root) + ")") + (m > 1 ? "^" + m : ""));
+      return [
+        ["the function", (s === 1 ? "" : s === -1 ? "-" : s + "·") + (terms.join("") || "1")],
+        ["degree", n === 0 ? "0" : m1 + " + " + m2 + " + " + m3 + " = " + n],
+        ["leading coefficient", String(s)],
+        ["end behaviour", endTxt],
+        ["at x = -2", verdict(m1)],
+        ["at x = 0", verdict(m2)],
+        ["at x = 3", verdict(m3)],
+        ["turning points", "at most n - 1 = " + Math.max(0, n - 1) + ", visible here " + turns],
+      ];
+    },
+
+    /* The logarithm as the exponential read backwards (§4.1, again in §4.3, ch04).
+       A tracer walks y = b^x and its mirror walks y = log_b x; the segment
+       joining them is perpendicular to y = x and bisected by it, because the
+       mirror is computed by swapping the coordinates rather than asserted. */
+    mirrorAcrossIdentity(ctx, p) {
+      // b = 1 is not an exponential function at all; step over it rather than
+      // drawing the horizontal line y = 1 and calling it one.
+      let b = clamp(p.b, 0.2, 5);
+      if (Math.abs(b - 1) < 0.05) b = p.b >= 1 ? 1.1 : 0.9;
+      const t = clamp(p.t, -3, 3);
+      const bt = Math.pow(b, t);
+      const logb = u => Math.log(u) / Math.log(b);
+
+      const lim = 5;
+      // view() holds one scale on both axes, which is the whole scene: a
+      // stretched aspect makes a true reflection look like a false one.
+      const v = view(ctx, { xmin: -lim, xmax: lim, ymin: -lim, ymax: lim, pad: 22 });
+      grid(ctx, v, -lim, lim, -lim, lim);
+      const expC = css("--accent"), logC = css("--green"), ink = css("--ink-faint");
+
+      line(ctx, v.X(-lim), v.Y(-lim), v.X(lim), v.Y(lim), css("--line"), 1.4, [5, 4]);
+      label(ctx, "y = x", v.X(lim) - 26, v.Y(lim) - 14, css("--line"), "right", 10);
+      // Neither asymptote ever moves, whatever the base does — which is the
+      // claim, so both are drawn at all times.
+      line(ctx, v.X(-lim), v.Y(0), v.X(lim), v.Y(0), expC, 1.2, [4, 4]);
+      line(ctx, v.X(0), v.Y(-lim), v.X(0), v.Y(lim), logC, 1.2, [4, 4]);
+
+      plot(ctx, v, x => { const y = Math.pow(b, x); return y > lim + 1 ? null : y; }, -lim, lim, expC, 2.4);
+      plot(ctx, v, x => (x <= 0 ? null : (Math.abs(logb(x)) > lim + 1 ? null : logb(x))), -lim, lim, logC, 2.4);
+
+      if (Math.abs(bt) <= lim + 0.5) {
+        line(ctx, v.X(t), v.Y(bt), v.X(bt), v.Y(t), css("--ink-faint"), 1.2, [3, 3]);
+        dot(ctx, v, t, bt, expC, true, 5.5);
+        dot(ctx, v, bt, t, logC, false, 5.5);
+        label(ctx, "(" + fmt(t, 2) + ", " + fmt(bt, 2) + ")", v.X(t) - 8, v.Y(bt) - 12, expC, "right", 10);
+        label(ctx, "(" + fmt(bt, 2) + ", " + fmt(t, 2) + ")", v.X(bt) + 8, v.Y(t) + 14, logC, "left", 10);
+      }
+      label(ctx, "y = " + fmt(b, 2) + "^x", 12, 16, expC, "left", 11);
+      label(ctx, "y = log_" + fmt(b, 2) + " x", 12, 32, logC, "left", 11);
+
+      const dir = b > 1 ? "increasing" : "decreasing";
+      return [
+        ["point on the exponential", "(" + fmt(t, 3) + ", " + fmt(bt, 3) + ")"],
+        ["its mirror on the logarithm", "(" + fmt(bt, 3) + ", " + fmt(t, 3) + ")"],
+        ["b to the power t", fmt(bt, 3)],
+        ["log base b of that", fmt(logb(bt), 3)],
+        ["exponential: domain, range", "(-∞, ∞)   and   (0, ∞)"],
+        ["logarithm:   domain, range", "(0, ∞)   and   (-∞, ∞)"],
+        ["both are", dir],
+        ["the segment joining them", "perpendicular to y = x, and its midpoint ("
+          + fmt((t + bt) / 2, 2) + ", " + fmt((t + bt) / 2, 2) + ") lies on it"],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;
