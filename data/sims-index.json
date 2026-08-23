@@ -24,6 +24,12 @@
     "free": false
   },
   {
+    "id": "the-restriction-that-vanishes",
+    "module": "ch02",
+    "title": "The condition that cancels out of the formula",
+    "free": false
+  },
+  {
     "id": "cross-or-touch",
     "module": "ch03",
     "title": "Where the graph crosses, where it bounces, and where it goes",
@@ -63,6 +69,12 @@
     "id": "shape-the-sine-wave",
     "module": "ch05",
     "title": "Amplitude, period, and the shift that is not the number in the bracket",
+    "free": false
+  },
+  {
+    "id": "which-angle-counts",
+    "module": "ch05",
+    "title": "Infinitely many angles, one of them the answer",
     "free": false
   },
   {

@@ -1259,6 +1259,190 @@ const SIMS = (() => {
       ];
     },
 
+    /* The restriction that cancels out of the formula (§2.8, ch02). Both
+       conditions on one number line: the outer one, which is visible in the
+       simplified composite, and the inner one, which is not — and which is the
+       mark almost everybody loses. */
+    compositionDomain(ctx, p) {
+      const P = clamp(Math.round(p.p), 1, 12);
+      // q = 0 turns f into the constant 1 and there is nothing left to teach.
+      const Q = Math.round(p.q) === 0 ? 1 : Math.round(p.q);
+      const outer = P / Q;
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const frac = (a, b) => {
+        const g = gcd(Math.abs(a), Math.abs(b)) || 1;
+        let N = a / g, D = b / g;
+        if (D < 0) { N = -N; D = -D; }
+        return D === 1 ? String(N) : N + "/" + D;
+      };
+      const outerTxt = frac(P, Q);
+
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const xmin = -10, xmax = 10, pad = 30;
+      const X = x => pad + ((clamp(x, xmin, xmax) - xmin) / (xmax - xmin)) * (W - 2 * pad);
+      const acc = css("--accent"), red = css("--red"), ink = css("--ink-faint");
+      const ly = H - 52;
+
+      // The three expressions, stacked in the order the work is done.
+      label(ctx, "inner:      g(x) = " + P + " / x", 14, 20, ink, "left", 12);
+      label(ctx, "outer:      f(u) = u / (u " + (Q < 0 ? "+ " + -Q : "- " + Q) + ")", 14, 40, ink, "left", 12);
+      const boxTxt = "f(g(x)) = " + P + " / (" + P + (Q < 0 ? " + " + -Q : " - " + Q) + "x)";
+      const bx = 14, by = 58, bw = Math.min(W - 28, 8 * boxTxt.length + 20), bh = 30;
+      ctx.save();
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.4;
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.restore();
+      label(ctx, boxTxt, bx + 10, by + bh / 2, css("--ink"), "left", 13);
+
+      line(ctx, X(xmin), ly, X(xmax), ly, ink, 1.4);
+      for (let t = xmin; t <= xmax; t++) {
+        const big = t % 5 === 0;
+        line(ctx, X(t), ly - (big ? 6 : 3), X(t), ly + (big ? 6 : 3), css("--line"), 1);
+        if (big) label(ctx, String(t), X(t), ly + 20, css("--line"), "center", 10);
+      }
+      const cuts = [0, outer].sort((a, b) => a - b);
+      const seg = (a, b) => line(ctx, X(a), ly, X(b), ly, acc, 5);
+      seg(xmin, cuts[0]); seg(cuts[0], cuts[1]); seg(cuts[1], xmax);
+      const dotAt = (x, colour) => dot(ctx, { X, Y: () => ly, s: 1 }, x, 0, colour, false, 5.5);
+      dotAt(outer, red);
+      dotAt(0, css("--green"));
+      label(ctx, "x = " + outerTxt + "  (from the outer function)", X(outer), ly - 14, red, "center", 10);
+      label(ctx, "x = 0  (from the inner function)", X(0), ly + 36, css("--green"), "center", 10);
+      /* The leader line is the scene in one glance: the condition that is not in
+         the box is pointed straight at the box. */
+      line(ctx, X(0), ly - 8, bx + bw / 2, by + bh + 6, css("--green"), 1, [3, 3]);
+      label(ctx, "not visible here", bx + bw / 2, by + bh + 18, css("--green"), "center", 10);
+
+      const parts = ["(-∞, " + fmt(cuts[0], 2) + ")",
+        "(" + fmt(cuts[0], 2) + ", " + fmt(cuts[1], 2) + ")",
+        "(" + fmt(cuts[1], 2) + ", ∞)"];
+      const same = Math.abs(cuts[0] - cuts[1]) < 1e-9;
+      return [
+        ["inner restriction", "x ≠ 0 — always, whatever the sliders say"],
+        ["outer restriction", "x ≠ " + outerTxt + ", from solving " + P + "/x = " + Q],
+        ["the simplified composite", boxTxt],
+        ["domain", same ? parts[0] + " ∪ " + parts[2] : parts.join(" ∪ ")],
+        ["pieces", same ? "2 — the two conditions coincided" : "3"],
+        ["read off the box alone", "you would get x ≠ " + outerTxt + " and stop, which is one mark of two"],
+      ];
+    },
+
+    /* Which of infinitely many angles is *the* answer (§5.7, ch05). The curve is
+       drawn over two turns with the principal branch picked out; the horizontal
+       line at the input meets it in many places, and exactly one of those meetings
+       lies in the range of the inverse. Everything else on screen is a candidate
+       the question did not ask for. */
+    inverseTrigRange(ctx, p) {
+      const which = clamp(Math.round(p.fn), 0, 2);       // 0 sin, 1 cos, 2 tan
+      const NAME = ["sin", "cos", "tan"][which];
+      const INV = ["sin⁻¹", "cos⁻¹", "tan⁻¹"][which];
+      const PI = Math.PI;
+      // Snap to the values a paper asks for, so the answer can be exact.
+      const SNAP = [0, 0.5, -0.5, Math.SQRT2 / 2, -Math.SQRT2 / 2, Math.sqrt(3) / 2, -Math.sqrt(3) / 2,
+        1, -1, Math.sqrt(3), -Math.sqrt(3), Math.sqrt(3) / 3, -Math.sqrt(3) / 3];
+      const SNAP_TXT = ["0", "1/2", "-1/2", "√2/2", "-√2/2", "√3/2", "-√3/2",
+        "1", "-1", "√3", "-√3", "√3/3", "-√3/3"];
+      let x = clamp(p.x, -3, 3), xTxt = null;
+      for (let i = 0; i < SNAP.length; i++) {
+        if (Math.abs(x - SNAP[i]) <= 0.03) { x = SNAP[i]; xTxt = SNAP_TXT[i]; break; }
+      }
+      const xLabel = xTxt || fmt(x, 2);
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const piFrac = tw => {
+        if (tw === 0) return "0";
+        const s = tw < 0 ? "-" : "";
+        const g = gcd(Math.abs(tw), 12) || 1, N = Math.abs(tw) / g, D = 12 / g;
+        return s + (N === 1 ? "pi" : N + "pi") + (D === 1 ? "" : "/" + D);
+      };
+      const asPi = a => {
+        const tw = a / (PI / 12);
+        return Math.abs(tw - Math.round(tw)) < 1e-6 ? piFrac(Math.round(tw)) : fmt(a, 3);
+      };
+
+      const f = [Math.sin, Math.cos, Math.tan][which];
+      const rangeTxt = ["[-pi/2, pi/2]", "[0, pi]", "(-pi/2, pi/2)"][which];
+      const inRange = a => (which === 0 ? a >= -PI / 2 - 1e-9 && a <= PI / 2 + 1e-9
+        : which === 1 ? a >= -1e-9 && a <= PI + 1e-9
+          : a > -PI / 2 + 1e-9 && a < PI / 2 - 1e-9);
+      const defined = which === 2 ? true : Math.abs(x) <= 1 + 1e-9;
+      const answer = !defined ? null : which === 0 ? Math.asin(x) : which === 1 ? Math.acos(x) : Math.atan(x);
+
+      // Every angle on two turns with the right value, so "infinitely many" is
+      // something you can count rather than a claim.
+      const candidates = [];
+      if (defined) {
+        const base = answer;
+        for (let n = -2; n <= 2; n++) {
+          if (which === 0) { candidates.push(base + 2 * PI * n, PI - base + 2 * PI * n); }
+          else if (which === 1) { candidates.push(base + 2 * PI * n, -base + 2 * PI * n); }
+          else candidates.push(base + PI * n);
+        }
+      }
+      const seenKeys = new Set(), shown = [];
+      for (const a of candidates.sort((m, n) => m - n)) {
+        if (a < -2 * PI - 1e-9 || a > 2 * PI + 1e-9) continue;
+        const key = Math.round(a * 1e6);
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        shown.push(a);                    // full precision, so asPi still recognises it
+      }
+
+      const xmin = -2 * PI, xmax = 2 * PI;
+      /* Sine and cosine live in [-1, 1]; drawing them on a tangent-sized window
+         puts the input line a few pixels from the axis and hides the very
+         crossing the student is being asked to find. */
+      const ymax = which === 2 ? 3 : 1.7, ymin = -ymax;
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 28;
+      const v = {
+        w: W, h: H,
+        X: a => pad + ((a - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ymin) / (ymax - ymin)) * (H - 2 * pad),
+      };
+      const acc = css("--accent"), ink = css("--ink-faint"), green = css("--green"), red = css("--red");
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      for (let t = -4; t <= 4; t++) {
+        const a = t * PI / 2;
+        line(ctx, v.X(a), v.Y(0) - 4, v.X(a), v.Y(0) + 4, css("--line"), 1);
+        if (t !== 0) label(ctx, piFrac(t * 6), v.X(a), v.Y(0) + 16, css("--line"), "center", 10);
+      }
+      // The principal branch, shaded on the angle axis: the range of this inverse.
+      const lo = which === 1 ? 0 : -PI / 2, hi = which === 1 ? PI : PI / 2;
+      ctx.save();
+      ctx.fillStyle = green; ctx.globalAlpha = 0.16;
+      ctx.fillRect(v.X(lo), v.Y(ymax), v.X(hi) - v.X(lo), v.Y(ymin) - v.Y(ymax));
+      ctx.restore();
+      label(ctx, "range of " + INV + ": " + rangeTxt, (v.X(lo) + v.X(hi)) / 2, v.Y(ymax) + 12, green, "center", 11);
+
+      const clip = y => (y === null || !isFinite(y) || Math.abs(y) > ymax ? null : y);
+      plot(ctx, v, a => clip(f(a)), xmin, xmax, ink, 1.4);
+      plot(ctx, v, a => (a < lo || a > hi ? null : clip(f(a))), lo, hi, green, 2.8);
+      line(ctx, v.X(xmin), v.Y(x), v.X(xmax), v.Y(x), acc, 1.6, [5, 4]);
+      label(ctx, "y = " + xLabel, v.X(xmax) - 4, v.Y(x) - 10, acc, "right", 10);
+
+      for (const a of shown) {
+        const good = inRange(a);
+        dot(ctx, v, a, x, good ? green : red, good, good ? 6 : 4);
+      }
+      if (!defined) {
+        label(ctx, INV + "(" + xLabel + ") is undefined — the line never meets the curve",
+          W / 2, v.Y(ymax) + 30, red, "center", 12);
+      }
+
+      const rejected = shown.filter(a => !inRange(a)).slice(0, 3).map(a => asPi(a));
+      return [
+        ["the question", INV + "(" + xLabel + ")"],
+        ["range of this inverse", rangeTxt],
+        ["angles on two turns with this value", defined ? shown.map(a => asPi(a)).join(",  ") : "none — no angle has this " + NAME],
+        ["the one in range", defined ? asPi(answer) : "undefined"],
+        ["in degrees", defined ? fmt(answer * 180 / PI, 1) + "°" : "—"],
+        ["why not the others", defined && rejected.length
+          ? rejected.join(", ") + " all have the same " + NAME + ", and all lie outside " + rangeTxt
+          : defined ? "there is no other candidate on screen" : (which === 2 ? "" : "the input is outside [-1, 1], which is the domain of " + INV)],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;
