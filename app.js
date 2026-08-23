@@ -1058,14 +1058,16 @@ function exactNudge(pt, raw) {
   if (nums(got) && want.some(w => nums(w) === nums(got)))
     return "The numbers are right and the notation is not. Read the question again for the form it asks for.";
   /* Everything above has already ruled out the three ways of being
-     right-but-written-wrong, so an answer that carries numbers at all is wrong
-     in its *value*. Telling a student who typed 8 for 9 that "the answer is
+     right-but-written-wrong — the number multiset itself does not match — so an
+     answer carrying numbers at all is wrong in its *mathematics*, whether the
+     part wants a value or an expression. Telling a student who typed 8 for 9
+     that "the answer is
      wanted as a value of x" reads as a complaint about the formatting, and
      sends them to check their brackets instead of their arithmetic. `form` is
      kept for the answer with no number in it, which is the one that really has
      not understood what was asked. */
   const form = pt.expect && pt.expect.form;
-  if (/\d/.test(got)) return "Not quite — that is not the value. Try again, or take a hint.";
+  if (/\d/.test(got)) return "Not quite — it is the maths, not the way it is written. Try again, or take a hint.";
   return form ? `Not quite. The answer is wanted ${form}.`
               : "Not quite — try again, or take a hint.";
 }
