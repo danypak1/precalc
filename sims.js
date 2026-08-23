@@ -1573,6 +1573,114 @@ const SIMS = (() => {
       ];
     },
 
+    /* The eight-part question, made continuous (§3.1, ch03). The final's Q1 is
+       one parabola looked at eight ways; here the three numbers of the vertex
+       form are on sliders and all eight answers move together — so "the maximum
+       value" and "where it happens" are visibly two different readouts. */
+    vertexFormSlider(ctx, p) {
+      // A straight line is not a case of this scene; step over a = 0.
+      const a = Math.abs(p.a) < 0.125 ? 0.25 : p.a;
+      const h = p.h, k = p.k;
+      const f = x => a * (x - h) * (x - h) + k;
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      /* a comes in quarters and k is an integer, so -k/a is exactly rational and
+         the intercepts can be printed as radicals rather than decimals — which
+         is the form the paper marks. */
+      const sqrtFrac = (num, den) => {
+        if (den < 0) { num = -num; den = -den; }
+        const g0 = gcd(Math.abs(num), den) || 1;
+        num /= g0; den /= g0;
+        // √(n/d) = √(n·d)/d
+        let inside = num * den, outside = 1;
+        for (let s = Math.floor(Math.sqrt(inside)); s >= 2; s--) {
+          if (inside % (s * s) === 0) { outside = s; inside /= s * s; break; }
+        }
+        const g1 = gcd(outside, den) || 1;
+        const top = (outside / g1 === 1 ? "" : outside / g1) + (inside === 1 ? "" : "√" + inside);
+        const bot = den / g1;
+        const topTxt = top === "" ? "1" : top;
+        return bot === 1 ? topTxt : topTxt + "/" + bot;
+      };
+      const nf = n => String(Math.round(n * 1000) / 1000);
+
+      // -k/a as a fraction: a = A/4 with A an integer, so -k/a = -4k/A.
+      const A4 = Math.round(a * 4);
+      const rNum = -4 * k, rDen = A4;
+      const disc = -k / a;                       // (x - h)² = -k/a at an intercept
+      let interceptTxt, roots = [];
+      if (Math.abs(k) < 1e-9) { interceptTxt = "one repeated intercept at x = " + nf(h); roots = [h]; }
+      else if (disc < 0) { interceptTxt = "none — the parabola never reaches the axis"; }
+      else {
+        const rad = sqrtFrac(rNum, rDen);
+        roots = [h - Math.sqrt(disc), h + Math.sqrt(disc)];
+        interceptTxt = "x = " + nf(h) + " ± " + rad + "   (" + nf(roots[0]) + ", " + nf(roots[1]) + ")";
+      }
+
+      const xmin = -8, xmax = 8;
+      // The vertex must never leave the frame, and y = 0 must stay visible or the
+      // intercepts have nothing to sit on.
+      let ylo = a > 0 ? k - 4 : k - 20, yhi = a > 0 ? k + 20 : k + 4;
+      ylo = Math.min(ylo, -3); yhi = Math.max(yhi, 3);
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 28;
+      const v = {
+        w: W, h: H,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ylo) / (yhi - ylo)) * (H - 2 * pad),
+      };
+      const acc = css("--accent"), green = css("--green"), ink = css("--ink-faint"), red = css("--red");
+
+      // The range, as a band up the y-axis from k.
+      ctx.save();
+      ctx.fillStyle = green; ctx.globalAlpha = 0.16;
+      const bandTop = a > 0 ? v.Y(yhi) : v.Y(k), bandBot = a > 0 ? v.Y(k) : v.Y(ylo);
+      ctx.fillRect(v.X(xmin), bandTop, 26, bandBot - bandTop);
+      ctx.restore();
+      // An unlabelled coloured strip is decoration; this one is the range.
+      label(ctx, "range", v.X(xmin) + 13, a > 0 ? bandBot + 12 : bandTop - 10, green, "center", 10);
+
+      for (let g = Math.ceil(xmin); g <= xmax; g++) line(ctx, v.X(g), v.Y(ylo), v.X(g), v.Y(yhi), css("--line"), g === 0 ? 1.4 : 0.4);
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.4);
+      line(ctx, v.X(h), v.Y(ylo), v.X(h), v.Y(yhi), ink, 1.4, [5, 4]);
+      // The label is the equation of a line, never a bare number — that is the
+      // distinction the mark scheme makes.
+      label(ctx, "x = " + nf(h), v.X(h) + 6, v.Y(yhi) + 14, ink, "left", 11);
+
+      plot(ctx, v, x => { const y = f(x); return y < ylo - 2 || y > yhi + 2 ? null : y; }, xmin, xmax, acc, 2.6);
+      for (const r of roots) dot(ctx, v, r, 0, red, false, 5);
+      dot(ctx, v, h, k, acc, true, 6);
+
+      // The y-intercept and its mirror, joined: the fourth point you get free
+      // from the axis of symmetry, which is why anyone bothers finding it.
+      const c = a * h * h + k;
+      if (c >= ylo && c <= yhi) {
+        dot(ctx, v, 0, c, green, false, 5);
+        if (Math.abs(h) > 1e-9 && Math.abs(2 * h) <= xmax) {
+          dot(ctx, v, 2 * h, c, green, false, 5);
+          line(ctx, v.X(0), v.Y(c), v.X(2 * h), v.Y(c), green, 1, [3, 3]);
+        }
+      }
+
+      const b = -2 * a * h;
+      const term = (coef, txt) => (coef === 0 ? "" : (coef > 0 ? " + " : " - ") + (Math.abs(coef) === 1 && txt ? "" : nf(Math.abs(coef))) + txt);
+      const standard = (a === 1 ? "" : a === -1 ? "-" : nf(a)) + "x²" + term(b, "x") + term(c, "");
+      label(ctx, "y = " + (a === 1 ? "" : a === -1 ? "-" : nf(a)) + "(x " + (h < 0 ? "+ " + nf(-h) : "- " + nf(h)) + ")²"
+        + (k === 0 ? "" : (k > 0 ? " + " : " - ") + nf(Math.abs(k))), 12, 16, css("--ink"), "left", 12);
+      label(ctx, "y = " + standard, 12, 34, ink, "left", 11);
+
+      return [
+        ["vertex", "(" + nf(h) + ", " + nf(k) + ")"],
+        ["axis of symmetry", "x = " + nf(h)],
+        ["opens", a > 0 ? "upward" : "downward"],
+        [a > 0 ? "minimum value" : "maximum value", nf(k)],
+        ["occurs at x =", nf(h)],
+        ["standard form", "y = " + standard],
+        ["x-intercepts", interceptTxt],
+        ["y-intercept", "(0, " + nf(c) + ")" + (Math.abs(h) > 1e-9 ? ",  mirrored at (" + nf(2 * h) + ", " + nf(c) + ")" : "")],
+        ["range", a > 0 ? "[" + nf(k) + ", ∞)" : "(-∞, " + nf(k) + "]"],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;

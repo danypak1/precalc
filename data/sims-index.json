@@ -30,6 +30,12 @@
     "free": false
   },
   {
+    "id": "one-parabola-eight-answers",
+    "module": "ch03",
+    "title": "One parabola, and the eight questions asked about it",
+    "free": false
+  },
+  {
     "id": "cross-or-touch",
     "module": "ch03",
     "title": "Where the graph crosses, where it bounces, and where it goes",
