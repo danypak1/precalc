@@ -319,6 +319,335 @@ const SIMS = (() => {
       ];
     },
 
+    /* Order of transformations (§2.6). The image of a parent function under
+       y = a·f(b(x − h)) + k, drawn against the graph a student gets by shifting
+       before the b is factored out of the argument. The two coincide exactly
+       when b = 1 or h = 0 — and the paper's own question has neither, which is
+       what this scene exists to make visible. */
+    transformOrder(ctx, p) {
+      const PARENTS = [
+        { name: "√x", tex: s => "√(" + s + ")", f: x => (x >= 0 ? Math.sqrt(x) : null),
+          halfDomain: true, floor: true, anchors: [[0, 0], [1, 1], [4, 2], [9, 3]] },
+        { name: "|x|", tex: s => "|" + s + "|", f: x => Math.abs(x),
+          halfDomain: false, floor: true, anchors: [[-2, 2], [-1, 1], [0, 0], [1, 1], [2, 2]] },
+        { name: "x²", tex: s => "(" + s + ")²", f: x => x * x,
+          halfDomain: false, floor: true, anchors: [[-2, 4], [-1, 1], [0, 0], [1, 1], [2, 4]] },
+        { name: "∛x", tex: s => "∛(" + s + ")", f: x => Math.cbrt(x),
+          halfDomain: false, floor: false, anchors: [[-8, -2], [-1, -1], [0, 0], [1, 1], [8, 2]] },
+      ];
+      const par = PARENTS[clamp(Math.round(p.parent || 0), 0, 3)];
+      /* A zero factor collapses the image to a line or a point, which teaches
+         nothing; the brief is to clamp to the next step rather than draw it. */
+      const a = p.a === 0 ? 0.5 : p.a;
+      const b = p.b === 0 ? 0.5 : p.b;
+      const h = p.h, k = p.k;
+      const shiftFirst = p.order >= 0.5;
+
+      const xmin = -10, xmax = 10, ymin = -8, ymax = 8;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 24 });
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+
+      const parentAt = x => par.f(x);
+      /* Factored, and therefore right: every point moves by x → x/b + h. */
+      const rightAt = x => { const u = par.f(b * (x - h)); return u === null ? null : a * u + k; };
+      /* Shift first, then squeeze: y = a·f(bx − h) + k. Not a slower route to
+         the same curve — a different curve. */
+      const wrongAt = x => { const u = par.f(b * x - h); return u === null ? null : a * u + k; };
+
+      plot(ctx, v, parentAt, xmin, xmax, css("--ink-faint"), 1.6);
+      if (shiftFirst) {
+        ctx.save(); ctx.setLineDash([6, 4]);
+        plot(ctx, v, wrongAt, xmin, xmax, css("--red"), 2.2);
+        ctx.restore();
+      }
+      plot(ctx, v, rightAt, xmin, xmax, css("--accent"), 2.6);
+
+      for (const [x0, y0] of par.anchors) {
+        if (x0 < xmin || x0 > xmax || y0 < ymin || y0 > ymax) continue;
+        const ix = x0 / b + h, iy = a * y0 + k;
+        dot(ctx, v, x0, y0, css("--ink-faint"), false, 4);
+        if (ix >= xmin && ix <= xmax && iy >= ymin && iy <= ymax) {
+          line(ctx, v.X(x0), v.Y(y0), v.X(ix), v.Y(iy), css("--line"), 1, [3, 3]);
+          dot(ctx, v, ix, iy, css("--accent"), true, 4.5);
+        }
+      }
+
+      const nf = n => String(Math.round(n * 100) / 100);
+      const signed = n => (n < 0 ? " - " + nf(-n) : " + " + nf(n));
+      const coef = n => (n === 1 ? "" : n === -1 ? "-" : nf(n) + "·");
+      const inner = (b === 1 ? "x" + (h === 0 ? "" : signed(-h))
+        : nf(b) + "(x" + (h === 0 ? "" : signed(-h)) + ")");
+      const C = -b * h;
+      const expanded = nf(b) + "x" + (C === 0 ? "" : signed(C));
+      const factored = "y = " + coef(a) + par.tex(inner) + (k === 0 ? "" : signed(k));
+      const asPrinted = "y = " + coef(a) + par.tex(expanded) + (k === 0 ? "" : signed(k));
+      label(ctx, factored, 12, 18, css("--ink"), "left", 13);
+      label(ctx, "as a paper prints it:  " + asPrinted, 12, 38, css("--ink-faint"), "left", 12);
+
+      const agree = b === 1 || h === 0;
+      let domain;
+      if (!par.halfDomain) domain = "all real x";
+      else domain = b > 0 ? "x >= " + nf(h) : "x <= " + nf(h);
+      const range = !par.floor ? "all real y"
+        : a > 0 ? "[" + nf(k) + ", inf)" : "(-inf, " + nf(k) + "]";
+      return [
+        ["image of the anchor (0, 0)", "(" + nf(h) + ", " + nf(k) + ")"],
+        ["domain", domain],
+        ["range", range],
+        ["shift read from the raw argument",
+          b === 1 ? "nothing to misread — b = 1" : nf(b * h) + ", but the shift is " + nf(h)],
+        ["the two graphs agree", agree ? "yes — order cannot matter here" : "no — shifting first lands elsewhere"],
+      ];
+    },
+
+    /* The unit circle walked one twelfth of π at a time (§5.3 and §5.4). Every
+       thing the final asks about an angle moves together: the terminal point in
+       surd form, the quadrant, the reference angle measured to the *horizontal*
+       axis, and all six functions with their signs. The two sections are one
+       object seen twice, and this is the object. */
+    unitCircleWalker(ctx, p) {
+      const t = Math.round(p.t);
+      const tt = ((t % 24) + 24) % 24;            // coterminal, in twelfths of π
+      const ang = t * Math.PI / 12, red = tt * Math.PI / 12;
+      const quadrantal = tt % 6 === 0;
+      const quad = quadrantal ? 0 : Math.floor(tt / 6) + 1;
+      const refTw = quadrantal ? 0
+        : quad === 1 ? tt : quad === 2 ? 12 - tt : quad === 3 ? tt - 12 : 24 - tt;
+      /* Multiples of π/6 and π/4 have surd values; π/12 and its odd relatives
+         do not, and printing a made-up surd for them would be worse than a
+         decimal. */
+      const exact = tt % 2 === 0 || tt % 3 === 0;
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const piFrac = tw => {
+        if (tw === 0) return "0";
+        const s = tw < 0 ? "-" : "";
+        const g = gcd(Math.abs(tw), 12), num = Math.abs(tw) / g, den = 12 / g;
+        const top = num === 1 ? "pi" : num + "pi";
+        return s + (den === 1 ? top : top + "/" + den);
+      };
+
+      const cosv = Math.cos(red), sinv = Math.sin(red);
+      const xmin = -1.45, xmax = 1.45;
+      const v = view(ctx, { xmin, xmax, ymin: -1.45, ymax: 1.45, pad: 22 });
+      const ink = css("--ink-faint"), acc = css("--accent");
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.4);
+      line(ctx, v.X(0), v.Y(xmin), v.X(0), v.Y(xmax), css("--line"), 1.4);
+      ctx.save();
+      ctx.strokeStyle = ink; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(v.X(0), v.Y(0), Math.max(0, v.s), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      const qlab = [["I", 0.72, 0.72], ["II", -0.72, 0.72], ["III", -0.72, -0.72], ["IV", 0.72, -0.72]];
+      for (const [nm, qx, qy] of qlab) label(ctx, nm, v.X(qx), v.Y(qy), css("--ink-faint"), "center", 12);
+
+      /* The rotation is drawn as a spiral so that "one and a half turns" is a
+         picture rather than a claim: the radius creeps outward with the angle,
+         so a second lap does not overdraw the first. */
+      ctx.save();
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      const steps = Math.max(2, Math.abs(t) * 6);
+      for (let i = 0; i <= steps; i++) {
+        const th = ang * i / steps;
+        const r = 0.26 + 0.055 * Math.abs(th) / (2 * Math.PI);
+        const X = v.X(r * Math.cos(th)), Y = v.Y(r * Math.sin(th));
+        i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      if (t !== tt) {
+        line(ctx, v.X(0), v.Y(0), v.X(1.12 * Math.cos(red)), v.Y(1.12 * Math.sin(red)), css("--line"), 1.2, [4, 4]);
+      }
+      line(ctx, v.X(0), v.Y(0), v.X(cosv), v.Y(sinv), acc, 2.4);
+
+      if (p.showTriangle >= 0.5 && !quadrantal) {
+        // Dropped to the x-axis, always: that is the whole argument for what a
+        // reference angle is, and dropping it to the y-axis is the misconception.
+        line(ctx, v.X(cosv), v.Y(sinv), v.X(cosv), v.Y(0), css("--green"), 1.8);
+        line(ctx, v.X(0), v.Y(0), v.X(cosv), v.Y(0), css("--green"), 1.8);
+        const mid = 0.22 * (cosv >= 0 ? 1 : -1);
+        label(ctx, "θ'", v.X(mid), v.Y(0.055 * (sinv >= 0 ? 1 : -1)), css("--green"), "center", 12);
+      }
+      dot(ctx, v, cosv, sinv, acc, true, 5.5);
+
+      const SURD = {
+        2: ["√3/2", "1/2", "√3/3", "√3", "2√3/3", "2"],
+        3: ["√2/2", "√2/2", "1", "1", "√2", "√2"],
+        4: ["1/2", "√3/2", "√3", "√3/3", "2", "2√3/3"],
+      };
+      const AXIS = {
+        0: ["1", "0", "0", "undefined", "1", "undefined"],
+        6: ["0", "1", "undefined", "0", "undefined", "1"],
+        12: ["-1", "0", "0", "undefined", "-1", "undefined"],
+        18: ["0", "-1", "undefined", "0", "undefined", "-1"],
+      };
+      const sgn = (s, val) => (s === "undefined" || s === "0" || val >= 0 ? s : "-" + s);
+      let cS, sS, tS, cotS, secS, cscS;
+      if (quadrantal) [cS, sS, tS, cotS, secS, cscS] = AXIS[tt];
+      else if (exact) {
+        const row = SURD[refTw];
+        const tanv = sinv / cosv;
+        cS = sgn(row[0], cosv); sS = sgn(row[1], sinv); tS = sgn(row[2], tanv);
+        cotS = sgn(row[3], tanv); secS = sgn(row[4], cosv); cscS = sgn(row[5], sinv);
+      } else {
+        cS = fmt(cosv, 3); sS = fmt(sinv, 3); tS = fmt(sinv / cosv, 3);
+        cotS = fmt(cosv / sinv, 3); secS = fmt(1 / cosv, 3); cscS = fmt(1 / sinv, 3);
+      }
+      /* Kept inside the box: at 7π/12 the point sits just left of the y-axis and
+         a right-aligned label ran off the edge of the canvas. */
+      const lx = clamp(v.X(cosv) + (cosv >= 0 ? 8 : -8), 64, v.w - 64);
+      label(ctx, "(" + cS + ", " + sS + ")", lx, clamp(v.Y(sinv) - 12, 12, v.h - 12),
+        css("--ink"), cosv >= 0 ? "left" : "right", 11);
+
+      const pos = [];
+      if (sinv > 1e-9) pos.push("sine", "cosecant");
+      if (cosv > 1e-9) pos.push("cosine", "secant");
+      if (Math.abs(cosv) > 1e-9 && Math.abs(sinv) > 1e-9 && sinv / cosv > 0) pos.push("tangent", "cotangent");
+
+      return [
+        ["angle", piFrac(t) + "  (" + fmt(ang, 3) + " rad)"],
+        ["in degrees", fmt(t * 15, 1) + "°"],
+        ["coterminal in [0, 2pi)", piFrac(tt)],
+        ["quadrant", quadrantal ? "quadrantal — on an axis" : ["I", "II", "III", "IV"][quad - 1]],
+        ["reference angle", quadrantal ? "none — the angle is quadrantal" : piFrac(refTw)],
+        ["terminal point (cos, sin)", "(" + cS + ", " + sS + ")"],
+        ["sin, cos, tan", sS + ",  " + cS + ",  " + tS],
+        ["csc, sec, cot", cscS + ",  " + secS + ",  " + cotS],
+        ["positive here", pos.length ? pos.join(", ") : "none of the six"],
+      ];
+    },
+
+    /* cos(bx) = c, and the two answers one question wants (§6.5). The general
+       solution and the solutions on [0, 2π) are not two ways of saying the same
+       thing: one is a family, the other is what survives inside a window, and a
+       paper that asks for both marks them separately. Both are printed at all
+       times, side by side, so the pair becomes a habit. */
+    bothAnswersDial(ctx, p) {
+      const b = Math.abs(p.b) < 0.25 ? 0.5 : p.b;
+      /* Snap to the values a paper actually uses, so the readouts can be exact.
+         Half a slider step is the tolerance the brief asks for. */
+      const SNAP = [
+        [-1, 12], [-Math.sqrt(3) / 2, 10], [-Math.sqrt(2) / 2, 9], [-0.5, 8],
+        [0, 6], [0.5, 4], [Math.sqrt(2) / 2, 3], [Math.sqrt(3) / 2, 2], [1, 0],
+      ];
+      let c = clamp(p.c, -1, 1), alphaTw = null;
+      for (const [val, tw] of SNAP) {
+        if (Math.abs(c - val) <= 0.03) { c = val; alphaTw = tw; break; }
+      }
+      const alpha = Math.acos(c);                    // in [0, π]
+      const n = Math.round(p.n || 0);
+
+      const gcd = (m, q) => (q ? gcd(q, m % q) : Math.abs(m));
+      const piFrac = (num, den) => {                 // (num/den)·π, already integers
+        if (num === 0) return "0";
+        const s = num < 0 ? "-" : "";
+        const g = gcd(Math.abs(num), den) || 1;
+        const N = Math.abs(num) / g, D = den / g;
+        const top = N === 1 ? "pi" : N + "pi";
+        return s + (D === 1 ? top : top + "/" + D);
+      };
+      /* b comes in halves, α in twelfths of π, so every solution is an exact
+         rational multiple of π: x = (±A + 24n)/(6B) · π with b = B/2. */
+      const B2 = Math.round(b * 2);
+      const exact = alphaTw !== null && Math.abs(b * 2 - B2) < 1e-9;
+      const xExact = (sign, m) => piFrac(sign * alphaTw + 24 * m, 6 * B2);
+      const xVal = (sign, m) => (sign * alpha + 2 * Math.PI * m) / b;
+
+      const inWindow = [];
+      for (let m = -2; m <= 2 * Math.ceil(b) + 2; m++) {
+        for (const sign of [1, -1]) {
+          const x = xVal(sign, m);
+          if (x < -1e-9 || x >= 2 * Math.PI - 1e-9) continue;
+          if (inWindow.some(e => Math.abs(e.x - x) < 1e-9)) continue;   // the families merge at c = ±1
+          inWindow.push({ x, sign, m });
+        }
+      }
+      inWindow.sort((u, w) => u.x - w.x);
+
+      const xmin = -2 * Math.PI, xmax = 4 * Math.PI;
+      const v = view(ctx, { xmin, xmax, ymin: -1.6, ymax: 1.6, pad: 22, box: { x: 0, y: 0, w: ctx.canvas.clientWidth, h: ctx.canvas.clientHeight * 0.66 } });
+      const acc = css("--accent"), ink = css("--ink-faint");
+      // The window every "on the interval" answer is cut from.
+      ctx.save();
+      ctx.fillStyle = css("--line"); ctx.globalAlpha = 0.35;
+      ctx.fillRect(v.X(0), v.Y(1.6), v.X(2 * Math.PI) - v.X(0), v.Y(-1.6) - v.Y(1.6));
+      ctx.restore();
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      plot(ctx, v, x => Math.cos(b * x), xmin, xmax, ink, 1.4);
+      plot(ctx, v, x => Math.cos(b * x), 0, 2 * Math.PI, css("--ink"), 2.4);
+      line(ctx, v.X(xmin), v.Y(c), v.X(xmax), v.Y(c), css("--green"), 1.8, [5, 4]);
+      for (const e of inWindow) dot(ctx, v, e.x, c, acc, true, 4.5);
+      // A root landing exactly on 2π is a real solution the half-open interval
+      // throws away — one hollow dot instead of a paragraph about brackets.
+      for (const sign of [1, -1]) {
+        for (let m = -3; m <= 8; m++) {
+          const x = xVal(sign, m);
+          if (Math.abs(x - 2 * Math.PI) < 1e-9) dot(ctx, v, x, c, acc, false, 4.5);
+        }
+      }
+      const hx = xVal(1, n);
+      if (hx >= xmin && hx <= xmax) {
+        dot(ctx, v, hx, c, css("--red"), true, 6.5);
+        label(ctx, (exact ? xExact(1, n) : fmt(hx, 2)) + (hx >= 0 && hx < 2 * Math.PI ? "" : "  (outside)"),
+          v.X(hx), v.Y(c) - 16, css("--red"), "center", 11);
+      }
+
+      /* The argument on its own axis: two turns of bx are two turns, drawn.
+         view() holds one scale for both axes so that an angle looks like the
+         angle it is — right for the unit circle, wrong here, where a strip
+         2πb wide and 3 tall would be squeezed into a sixth of the width and the
+         two turns this panel exists to show would be unreadable. So this one
+         strip gets its own stretched mapping. */
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const box = { x: 14, y: H * 0.70, w: W - 28, h: H * 0.26 };
+      const ax = 2 * Math.PI * b;
+      const v2 = {
+        w: box.w, h: box.h,
+        X: u => box.x + (u / ax) * box.w,
+        Y: y => box.y + box.h / 2 - (y / 1.9) * (box.h / 2),
+      };
+      line(ctx, v2.X(0), v2.Y(0), v2.X(ax), v2.Y(0), css("--line"), 1.2);
+      plot(ctx, v2, u => Math.cos(u), 0, ax, css("--ink"), 1.8);
+      line(ctx, v2.X(0), v2.Y(c), v2.X(ax), v2.Y(c), css("--green"), 1.4, [5, 4]);
+      // Every turn of the argument is one lap of the circle, and each lap is
+      // where a pair of solutions comes from — so the laps are marked.
+      for (let turn = 1; turn * 2 * Math.PI < ax - 1e-9; turn++) {
+        line(ctx, v2.X(turn * 2 * Math.PI), v2.Y(-1.9), v2.X(turn * 2 * Math.PI), v2.Y(1.9), css("--line"), 1, [3, 3]);
+      }
+      label(ctx, "the argument bx runs over 0 … " + fmt(2 * b, 2) + "pi  ("
+        + (Math.round(b * 100) / 100) + " turn" + (b === 1 ? "" : "s") + ")",
+        box.x, box.y - 6, ink, "left", 11);
+
+      const fam = sign => (exact
+        ? (alphaTw === 0 || alphaTw === 12 ? xExact(sign, 0) + " + " + piFrac(24, 6 * B2) + "·n"
+          : (sign > 0 ? "" : "-") + piFrac(alphaTw, 6 * B2) + " + " + piFrac(24, 6 * B2) + "·n")
+        : fmt(sign * alpha / b, 3) + " + " + fmt(2 * Math.PI / b, 3) + "·n");
+      const merged = Math.abs(c) === 1;
+      const predicted = merged ? Math.round(b) : Math.round(2 * b);
+      const listed = inWindow.map(e => (exact ? xExact(e.sign, e.m) : fmt(e.x, 3))).join(",  ");
+
+      return [
+        ["the equation", "cos(" + (b === 1 ? "" : Math.round(b * 100) / 100) + "x) = " + (exact ? ["1", "", "√3/2", "√2/2", "1/2", "", "0", "", "-1/2", "-√2/2", "-√3/2", "", "-1"][alphaTw] : fmt(c, 3))],
+        ["reference angle", exact ? piFrac(Math.min(alphaTw, 12 - alphaTw), 12) : fmt(Math.acos(Math.abs(c)), 3)],
+        ["quadrants", c > 0 ? "I and IV (cosine positive)" : c < 0 ? "II and III (cosine negative)" : "II and IV boundary — cosine is zero"],
+        ["general solution for the argument", exact
+          ? "bx = ±" + piFrac(alphaTw, 12) + " + 2pi·n"
+          : "bx = ±" + fmt(alpha, 3) + " + 2pi·n"],
+        ["general solution for x", merged
+          ? "x = " + fam(1) + "   (one family — at c = ±1 the two coincide)"
+          : "x = " + fam(1) + "   and   x = " + fam(-1)],
+        ["spacing between consecutive members", exact ? piFrac(24, 6 * B2) : fmt(2 * Math.PI / b, 3)],
+        ["solutions on [0, 2pi)", listed || "none"],
+        ["how many", inWindow.length + (merged
+          ? " — the families merge at c = ±1, so the count is b, not 2b"
+          : inWindow.length === predicted ? " — and 2b predicts " + predicted
+            : " — but 2b predicts " + predicted)],
+        ["highlighted member (n = " + n + ")", (exact ? xExact(1, n) : fmt(hx, 3))
+          + (hx >= 0 && hx < 2 * Math.PI ? "" : "  — outside [0, 2pi)")],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;
@@ -1472,6 +1801,13 @@ const SIMS = (() => {
   function paint(canvas, sim, values) {
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth, h = canvas.clientHeight;
+    /* A canvas can be measured before layout has given it a size, and a view
+       built on a zero width has a negative scale — which reaches ctx.arc as a
+       negative radius and throws. The throw used to happen inside render(),
+       before the ResizeObserver below was attached, so the card never repainted
+       and the trainer stayed blank for good. Nothing can usefully be drawn in
+       zero pixels, so wait for the observer to call again. */
+    if (!(w > 0 && h > 0)) return [];
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
