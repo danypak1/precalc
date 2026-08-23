@@ -1,4 +1,4 @@
-/* LHS Study Guide — SPA. Hash routing:
+/* Course study guide — SPA. Hash routing:
  *   #/                     home
  *   #/ch02/learn           notes
  *   #/ch02/practice        quiz hub
@@ -9,7 +9,7 @@
    without a key sees instead of a locked module. They are a *description* of the
    chapter — what it covers and how big it is — not any of its teaching content.
    The summaries used to do this job, but a summary is the chapter distilled, and
-   giving eleven of those away is giving away most of what the key is for. */
+   giving all of those away is giving away most of what the key is for. */
 const MODULES = [
   { id: "ch00", num: "00", title: "Algebra Review", ready: true, sections: 4,
     blurb: `The four skills every later chapter silently assumes: rational exponents and radicals, polynomial arithmetic, factoring, and rational expressions. The midterm opens with two whole questions on factoring and on simplifying rational expressions, and the algebra here is what a lost mark in chapter 3 or 6 usually turns out to be.`,
@@ -311,7 +311,7 @@ function routeTo() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [mod, tab] = hash.split("/");
   renderNav(mod);
-  // #/unlock/LHS-XXXXX-… — the link sent with the key, so the first sign-in
+  // #/unlock/<PREFIX>-XXXXX-… — the link sent with the key, so the first sign-in
   // is a click rather than twenty characters typed on a phone. Decoded because
   // Chrome percent-encodes parts of location.hash and Firefox does not: without
   // this the same link sends a different string to the Worker in each.
@@ -1057,7 +1057,15 @@ function exactNudge(pt, raw) {
   const nums = s => (s.match(/-?\d+(?:\.\d+)?/g) || []).sort().join("|");
   if (nums(got) && want.some(w => nums(w) === nums(got)))
     return "The numbers are right and the notation is not. Read the question again for the form it asks for.";
+  /* Everything above has already ruled out the three ways of being
+     right-but-written-wrong, so an answer that carries numbers at all is wrong
+     in its *value*. Telling a student who typed 8 for 9 that "the answer is
+     wanted as a value of x" reads as a complaint about the formatting, and
+     sends them to check their brackets instead of their arithmetic. `form` is
+     kept for the answer with no number in it, which is the one that really has
+     not understood what was asked. */
   const form = pt.expect && pt.expect.form;
+  if (/\d/.test(got)) return "Not quite — that is not the value. Try again, or take a hint.";
   return form ? `Not quite. The answer is wanted ${form}.`
               : "Not quite — try again, or take a hint.";
 }
