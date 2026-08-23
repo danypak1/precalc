@@ -906,6 +906,213 @@ const SIMS = (() => {
       ];
     },
 
+    /* A hole against a vertical asymptote (§3.5, ch03). One numerator root slides
+       through a denominator root; the domain never changes, and at the instant
+       the two coincide the asymptote is replaced by a single missing point. The
+       slides state the asymptote rule only for a fraction with no common factor
+       and never say what happens when there is one, so this is that slide. */
+    holeOrAsymptote(ctx, p) {
+      const r = p.r;
+      const POLES = [2, -4], ZERO2 = -3;
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const frac = (num, den) => {
+        const g = gcd(Math.abs(num), Math.abs(den)) || 1;
+        let N = num / g, D = den / g;
+        if (D < 0) { N = -N; D = -D; }
+        return D === 1 ? String(N) : N + "/" + D;
+      };
+      // A common factor exists only when r lands exactly on a pole; the slider
+      // steps in quarters, so this is an exact comparison, not a near one.
+      const cancels = POLES.find(v => Math.abs(r - v) < 1e-9);
+      const cancelled = cancels !== undefined;
+      const keptPole = cancelled ? POLES.find(v => v !== cancels) : null;
+
+      const f = x => ((x - r) * (x + 3)) / ((x - 2) * (x + 4));
+      // The reduced form is what the curve actually looks like once the common
+      // factor is gone — including at the hole, where the original is 0/0.
+      const reduced = x => (cancelled ? (x + 3) / (x - keptPole) : f(x));
+      const holeY = cancelled ? (cancels + 3) / (cancels - keptPole) : null;
+      const holeTxt = cancelled ? frac(cancels + 3, cancels - keptPole) : null;
+
+      const xmin = -7, xmax = 7, ymin = -6, ymax = 6;
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const v = view(ctx, { xmin, xmax, ymin, ymax, pad: 24 });
+      grid(ctx, v, xmin, xmax, ymin, ymax);
+      const acc = css("--accent"), ink = css("--ink-faint");
+
+      // y = 1 always: same degree top and bottom, leading coefficients 1 and 1.
+      line(ctx, v.X(xmin), v.Y(1), v.X(xmax), v.Y(1), css("--green"), 1.4, [5, 4]);
+      label(ctx, "y = 1", v.X(xmax) - 6, v.Y(1) - 10, css("--green"), "right", 10);
+      for (const pole of POLES) {
+        // A cancelled factor leaves no asymptote at all. Drawing a faint one
+        // "where it used to be" invites exactly the reading the scene exists to
+        // correct — the line is gone, and only the excluded point remains.
+        if (cancelled && pole !== keptPole) continue;
+        line(ctx, v.X(pole), v.Y(ymin), v.X(pole), v.Y(ymax), css("--red"), 1.6, [5, 4]);
+        label(ctx, "x = " + pole, v.X(pole) + 5, v.Y(ymax) + 12, css("--red"), "left", 10);
+      }
+      /* Plotted piecewise between the poles so that no segment is drawn across
+         one: a single sweep joins +∞ to −∞ with a vertical line and teaches the
+         asymptote as part of the graph. */
+      const breaks = [xmin, ...POLES.slice().sort((a, b) => a - b), xmax];
+      for (let i = 0; i < breaks.length - 1; i++) {
+        const lo = breaks[i] + (i ? 0.001 : 0), hi = breaks[i + 1] - (i + 1 < breaks.length - 1 ? 0.001 : 0);
+        plot(ctx, v, x => {
+          const y = reduced(x);
+          return (y === null || !isFinite(y) || y < ymin - 2 || y > ymax + 2) ? null : y;
+        }, lo, hi, acc, 2.4);
+      }
+      // The excluded values are marked on the axis in one colour throughout,
+      // because the domain is the one thing the slider never changes.
+      for (const pole of POLES) dot(ctx, v, pole, 0, css("--red"), false, 4);
+      if (cancelled) dot(ctx, v, cancels, holeY, acc, false, 5.5);
+
+      const zeros = [r, -3].filter(z => !cancelled || Math.abs(z - cancels) > 1e-9);
+      const nf = n => String(Math.round(n * 100) / 100);
+      const factor = (root) => "(x " + (root < 0 ? "+ " + nf(-root) : "- " + nf(root)) + ")";
+      const shown = cancelled
+        ? factor(r) + "(x + 3) / " + factor(2) + factor(-4) + "   →   (x + 3) / " + factor(keptPole)
+        : factor(r) + "(x + 3) / " + factor(2) + factor(-4);
+      label(ctx, shown, 12, 16, css("--ink"), "left", 11);
+
+      return [
+        ["the function", shown],
+        ["domain", "(-∞, -4) ∪ (-4, 2) ∪ (2, ∞)"],
+        ["vertical asymptotes", cancelled ? "x = " + keptPole : "x = 2 and x = -4"],
+        ["hole", cancelled ? "(" + cancels + ", " + holeTxt + ")" : "none"],
+        ["x-intercepts", zeros.length ? zeros.map(z => nf(z)).join(", ") : "none"],
+        ["horizontal asymptote", "y = 1"],
+        ["what changed", cancelled
+          ? "the factor cancels: x = " + cancels + " is still excluded, but the graph now has a point missing rather than a wall"
+          : "nothing cancels — both excluded values are asymptotes"],
+      ];
+    },
+
+    /* Why a logarithmic equation throws a root away (§4.5, ch04). Condensing two
+       logarithms into one *enlarges the domain*, and the rejected candidate
+       lives in the enlargement — so it is not an arithmetic accident and no sign
+       was lost. The pale band under the plot is the enlargement, drawn. */
+    rejectedRootLab(ctx, p) {
+      const b = clamp(Math.round(p.b), 2, 6);
+      const P = Math.round(p.p), Q = Math.round(p.q), k = Math.round(p.k);
+      const diff = p.mode >= 0.5;
+      const RHS = Math.pow(b, k);
+
+      /* Both arguments must be positive however the equation is written, so the
+         original domain is one intersection; the condensed form asks only that
+         the product (or quotient) be positive, which is a strictly larger set. */
+      const floor = Math.max(-P, Q);
+      const lower = Math.min(-P, Q);
+      const argA = x => x + P, argB = x => x - Q;
+
+      let candidates = [];
+      if (!diff) {
+        // (x + P)(x - Q) = b^k  →  x² + (P - Q)x - PQ - b^k = 0
+        const A = 1, B = P - Q, C = -P * Q - RHS;
+        const disc = B * B - 4 * A * C;
+        if (disc >= 0) {
+          const s = Math.sqrt(disc);
+          candidates = disc === 0 ? [-B / 2] : [(-B - s) / 2, (-B + s) / 2];
+        }
+      } else if (Math.abs(RHS - 1) > 1e-12) {
+        candidates = [(RHS * Q + P) / (RHS - 1)];
+      }
+      const termA = "x " + (P < 0 ? "- " + -P : "+ " + P);
+      const termB = "x " + (Q < 0 ? "+ " + -Q : "- " + Q);
+      const verdict = x => {
+        const a = argA(x), c = argB(x);
+        if (a > 1e-9 && c > 1e-9) return { ok: true };
+        const bad = a <= 1e-9 ? { which: termA, val: a } : { which: termB, val: c };
+        return { ok: false, bad };
+      };
+      const kept = candidates.filter(x => verdict(x).ok);
+
+      const xmin = Math.min(lower - 5, -8), xmax = Math.max(floor + 7, ...candidates.map(c => c + 2), 8);
+      const ymin = -3, ymax = Math.max(k + 3, 6);
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const pad = 26, stripH = 52;
+      const plotH = H - stripH - 8;
+      const v = {
+        w: W, h: plotH,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => plotH - pad - ((y - ymin) / (ymax - ymin)) * (plotH - 2 * pad),
+      };
+      const acc = css("--accent"), ink = css("--ink-faint");
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      line(ctx, v.X(xmin), v.Y(k), v.X(xmax), v.Y(k), css("--green"), 1.6, [5, 4]);
+      label(ctx, "y = " + k, v.X(xmax) - 4, v.Y(k) - 10, css("--green"), "right", 10);
+
+      const logb = u => Math.log(u) / Math.log(b);
+      const twoLogs = x => (argA(x) > 0 && argB(x) > 0
+        ? (diff ? logb(argA(x)) - logb(argB(x)) : logb(argA(x)) + logb(argB(x))) : null);
+      const oneLog = x => {
+        const u = diff ? argA(x) / argB(x) : argA(x) * argB(x);
+        return u > 0 ? logb(u) : null;
+      };
+      // Dashed: the condensed form, which exists on the larger set. Solid: the
+      // equation as it was handed to you. They agree everywhere both exist.
+      ctx.save(); ctx.setLineDash([5, 4]);
+      plot(ctx, v, x => { const y = oneLog(x); return y === null || y < ymin || y > ymax ? null : y; }, xmin, xmax, css("--red"), 1.8);
+      ctx.restore();
+      plot(ctx, v, x => { const y = twoLogs(x); return y === null || y < ymin || y > ymax ? null : y; }, xmin, xmax, acc, 2.6);
+
+      /* The strip: pale is where the condensed form lives, strong is where the
+         original does, and the pale-only stretch is the whole lesson. */
+      const sy = H - stripH + 10, sh = 16;
+      ctx.save();
+      ctx.fillStyle = css("--line"); ctx.globalAlpha = 0.55;
+      ctx.fillRect(v.X(xmin), sy, v.X(lower) - v.X(xmin), sh);
+      ctx.fillRect(v.X(floor), sy, v.X(xmax) - v.X(floor), sh);
+      ctx.restore();
+      ctx.save();
+      ctx.fillStyle = acc; ctx.globalAlpha = 0.75;
+      ctx.fillRect(v.X(floor), sy, v.X(xmax) - v.X(floor), sh);
+      ctx.restore();
+      label(ctx, "condensing added this", (v.X(xmin) + v.X(lower)) / 2, sy + sh + 12, css("--red"), "center", 10);
+      label(ctx, "the original domain", (v.X(floor) + v.X(xmax)) / 2, sy + sh + 12, acc, "center", 10);
+      label(ctx, "x = " + fmt(lower, 2), v.X(lower), sy - 6, ink, "center", 10);
+      label(ctx, "x = " + fmt(floor, 2), v.X(floor), sy - 6, ink, "center", 10);
+
+      for (const c of candidates) {
+        if (c < xmin || c > xmax) continue;
+        const good = verdict(c).ok;
+        line(ctx, v.X(c), v.Y(k), v.X(c), sy + sh, good ? acc : css("--red"), 1.4, [3, 3]);
+        dot(ctx, v, c, k, good ? acc : css("--red"), good, 5);
+        // Beside the dot rather than under the strip: at the foot of the canvas
+        // the value was clipped by the card's own edge.
+        label(ctx, fmt(c, 2), v.X(c), v.Y(k) - 14, good ? acc : css("--red"), "center", 11);
+      }
+
+      const inter = (lo, hi) => (hi === Infinity ? "(" + fmt(lo, 2) + ", ∞)" : "(" + fmt(lo, 2) + ", " + fmt(hi, 2) + ")");
+      const condensed = "(-∞, " + fmt(lower, 2) + ") ∪ " + inter(floor, Infinity);
+      const eqn = diff ? "(" + termA + ") / (" + termB + ") = " + RHS
+        : "(" + termA + ")(" + termB + ") = " + RHS;
+      const line1 = candidates.length > 0 ? candidates[0] : null;
+      const line2 = candidates.length > 1 ? candidates[1] : null;
+      const describe = x => {
+        if (x === null) return "none";
+        const w = verdict(x);
+        if (w.ok) return fmt(x, 2) + " — accepted";
+        return fmt(x, 2) + " — rejected: " + w.bad.which + " = " + fmt(w.bad.val, 2) + ", and a logarithm has no negative argument";
+      };
+      return [
+        ["the equation", "log_" + b + "(" + termA + ") " + (diff ? "-" : "+")
+          + " log_" + b + "(" + termB + ") = " + k],
+        ["original domain", inter(floor, Infinity)],
+        ["condensed domain", condensed],
+        /* Always a whole ray, never nothing: (x + P)(x - Q) > 0 holds to the
+           left of the smaller root as well as to the right of the larger, and
+           when the two roots coincide the left branch is still there. An
+           earlier version reported "the two agree" whenever -P equalled Q,
+           which is the one setting where the added region is easiest to miss. */
+        ["what condensing added", "(-∞, " + fmt(lower, 2) + ")"],
+        ["equation after condensing", eqn],
+        ["candidate 1", describe(line1)],
+        ["candidate 2", describe(line2)],
+        ["solution set", kept.length ? "{" + kept.map(x => fmt(x, 2)).join(", ") + "}" : "∅"],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;

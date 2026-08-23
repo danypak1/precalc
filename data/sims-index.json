@@ -30,6 +30,18 @@
     "free": false
   },
   {
+    "id": "hole-or-asymptote",
+    "module": "ch03",
+    "title": "When a factor cancels, the domain does not change",
+    "free": false
+  },
+  {
+    "id": "why-a-root-is-rejected",
+    "module": "ch04",
+    "title": "Condensing enlarges the domain, and the extra root lives there",
+    "free": false
+  },
+  {
     "id": "walk-the-unit-circle",
     "module": "ch05",
     "title": "One angle, and everything the paper asks about it",
