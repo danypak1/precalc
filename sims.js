@@ -648,6 +648,264 @@ const SIMS = (() => {
       ];
     },
 
+    /* The sign chart, built the way §3.6 asks for it to be written (ch03). The
+       answer to a polynomial or rational inequality is a *set*, and the marks
+       are in the table that produces it: boundary points, the sign of each
+       factor on each interval, and then a separate decision about the boundary
+       points themselves. So the table is the picture. */
+    signChart(ctx, p) {
+      const q = Math.round(p.q);
+      const mult = p.mult >= 1.5 ? 2 : 1;
+      const rational = p.rational >= 0.5;
+      const r = Math.round(p.r);
+      /* 0 = > 0, 1 = >= 0, 2 = < 0, 3 = <= 0 */
+      const sym = clamp(Math.round(p.symbol), 0, 3);
+      const wantPositive = sym < 2, allowEqual = sym === 1 || sym === 3;
+      const symText = ["> 0", ">= 0", "< 0", "<= 0"][sym];
+      let pRoot = Math.round(p.p);
+      // Two boundary points that coincide are one boundary point with a bigger
+      // exponent, which is a different question; nudge rather than pretend.
+      if (pRoot === q) pRoot = q - 1;
+
+      const factors = [
+        { label: mult === 2 ? "(x " + (pRoot <= 0 ? "+ " + -pRoot : "- " + pRoot) + ")²" : "(x " + (pRoot <= 0 ? "+ " + -pRoot : "- " + pRoot) + ")", root: pRoot, mult, below: false },
+        { label: "(x " + (q <= 0 ? "+ " + -q : "- " + q) + ")", root: q, mult: 1, below: false },
+      ];
+      if (rational) factors.push({ label: "(x " + (r <= 0 ? "+ " + -r : "- " + r) + ")", root: r, mult: 1, below: true });
+
+      const zeros = [pRoot, q];
+      const poles = rational ? [r] : [];
+      const bounds = [...new Set([...zeros, ...poles])].sort((m, n) => m - n);
+      const signAt = x => {
+        let s = 1;
+        for (const f of factors) {
+          const d = x - f.root;
+          if (Math.abs(d) < 1e-9) return 0;
+          if (f.mult % 2 === 1 && d < 0) s = -s;         // even powers never flip
+        }
+        return s;
+      };
+      const cuts = [-Infinity, ...bounds, Infinity];
+      const intervals = [];
+      for (let i = 0; i < cuts.length - 1; i++) {
+        const lo = cuts[i], hi = cuts[i + 1];
+        const test = lo === -Infinity ? hi - 1 : hi === Infinity ? lo + 1 : (lo + hi) / 2;
+        intervals.push({ lo, hi, sign: signAt(test), test });
+      }
+
+      /* ---- the picture: one row per factor, then the product row, then the
+         number line the answer is read off. */
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      const left = 92, right = W - 18;
+      const xmin = -8, xmax = 8;
+      const X = x => left + ((clamp(x, xmin, xmax) - xmin) / (xmax - xmin)) * (right - left);
+      const ink = css("--ink-faint"), acc = css("--accent");
+      /* The table and the number line are one object — the rows produce the
+         line — so they are laid out together and centred, rather than pinned to
+         opposite edges of the canvas with a hole between them. */
+      const rowH = clamp((H - 96) / (factors.length + 1), 24, 46);
+      const blockH = rowH * (factors.length + 1) + 62;
+      const topY = Math.max(26, (H - blockH) / 2 + 12);
+
+      label(ctx, "sign of each factor on each interval", left, 14, ink, "left", 11);
+      for (const b of bounds) {
+        line(ctx, X(b), topY - 8, X(b), topY + rowH * (factors.length + 1) + 4, css("--line"), 1, [3, 3]);
+      }
+      factors.forEach((f, i) => {
+        const y = topY + rowH * i + rowH / 2;
+        label(ctx, f.label + (f.below ? "  ÷" : ""), left - 10, y, css("--ink"), "right", 11);
+        for (const iv of intervals) {
+          const mid = iv.lo === -Infinity ? Math.max(xmin + 0.6, iv.hi - 1.4)
+            : iv.hi === Infinity ? Math.min(xmax - 0.6, iv.lo + 1.4) : (iv.lo + iv.hi) / 2;
+          const d = mid - f.root;
+          const s = f.mult % 2 === 0 ? "+" : d > 0 ? "+" : "-";
+          label(ctx, s, X(mid), y, f.mult % 2 === 0 ? css("--green") : ink, "center", 13);
+        }
+      });
+      const py = topY + rowH * factors.length + rowH / 2;
+      label(ctx, rational ? "quotient" : "product", left - 10, py, css("--ink"), "right", 11);
+      for (const iv of intervals) {
+        const mid = iv.lo === -Infinity ? Math.max(xmin + 0.6, iv.hi - 1.4)
+          : iv.hi === Infinity ? Math.min(xmax - 0.6, iv.lo + 1.4) : (iv.lo + iv.hi) / 2;
+        const keep = (iv.sign > 0) === wantPositive;
+        label(ctx, iv.sign > 0 ? "+" : "-", X(mid), py, keep ? acc : ink, "center", 15);
+      }
+
+      const ly = Math.min(H - 26, topY + rowH * (factors.length + 1) + 46);
+      line(ctx, X(xmin), ly, X(xmax), ly, css("--ink-faint"), 1.4);
+      for (let t = xmin; t <= xmax; t++) {
+        const big = t % 2 === 0;
+        line(ctx, X(t), ly - (big ? 5 : 3), X(t), ly + (big ? 5 : 3), css("--line"), 1);
+        if (big) label(ctx, String(t), X(t), ly + 16, css("--line"), "center", 10);
+      }
+      for (const iv of intervals) {
+        if ((iv.sign > 0) !== wantPositive) continue;
+        line(ctx, X(iv.lo === -Infinity ? xmin : iv.lo), ly, X(iv.hi === Infinity ? xmax : iv.hi), ly, acc, 5);
+      }
+      for (const b of bounds) {
+        const isPole = poles.includes(b);
+        const included = !isPole && allowEqual;
+        dot(ctx, { X, Y: () => ly, s: 1 }, b, 0, isPole ? css("--red") : acc, included, 5.5);
+      }
+
+      /* ---- the answer. The line reads as a strip of atoms — interval, point,
+         interval, … — each either in the solution or not; a maximal run of
+         atoms that are in *is* one piece of the answer. Written any other way
+         this needs a special case for a point that joins two intervals and
+         another for a point that stands alone, and both were wrong first time. */
+      const atoms = [];
+      intervals.forEach((iv, i) => {
+        atoms.push({ kind: "iv", lo: iv.lo, hi: iv.hi, in: (iv.sign > 0) === wantPositive });
+        const b = bounds[i];
+        if (b !== undefined) atoms.push({ kind: "pt", at: b, in: !poles.includes(b) && allowEqual });
+      });
+      const pieces = [];
+      for (let i = 0; i < atoms.length;) {
+        if (!atoms[i].in) { i++; continue; }
+        let j = i;
+        while (j + 1 < atoms.length && atoms[j + 1].in) j++;
+        pieces.push(atoms.slice(i, j + 1));
+        i = j + 1;
+      }
+      const text = pieces.map(run => {
+        const first = run[0], last = run[run.length - 1];
+        if (run.length === 1 && first.kind === "pt") return "{" + first.at + "}";
+        const L = first.kind === "pt" ? "[" + first.at
+          : first.lo === -Infinity ? "(-∞" : "(" + first.lo;
+        const R = last.kind === "pt" ? last.at + "]"
+          : last.hi === Infinity ? "∞)" : last.hi + ")";
+        return L + ", " + R;
+      }).join(" ∪ ");
+
+      const numer = factors.filter(f => !f.below).map(f => f.label).join("");
+      const expr = rational ? numer + " / " + factors[2].label : numer;
+      const f0 = (() => {
+        let val = 1;
+        for (const f of factors) {
+          const d = 0 - f.root;
+          val = f.below ? val / d : val * Math.pow(d, f.mult);
+        }
+        return val;
+      })();
+      const holes = zeros.filter(z => poles.includes(z));
+      const zeroText = zeros.filter(z => !holes.includes(z)).map(z => z + " (zero)").join(", ");
+      const poleText = poles.filter(z => !holes.includes(z)).map(z => z + " (undefined)").join(", ");
+      const holeText = holes.map(z => z + " (a cancelled factor — a hole, and still excluded)").join(", ");
+      return [
+        ["the inequality", expr + " " + symText],
+        ["boundary points", [zeroText, poleText, holeText].filter(Boolean).join(", ")],
+        ["sign pattern, left to right", intervals.map(iv => (iv.sign > 0 ? "+" : "-")).join("  ")],
+        ["boundary points included", allowEqual
+          ? (poles.length ? "the zeros, yes — but never " + poles.join(", ") + ", where it is undefined" : "yes — the symbol allows equality")
+          : "none — a strict symbol excludes every boundary point"],
+        ["solution", text || "∅"],
+        ["test at x = 0", "value " + fmt(f0, 2) + ", which is " + ((f0 > 0) === wantPositive && Math.abs(f0) > 1e-9 ? "in" : "out")],
+      ];
+    },
+
+    /* y = A·sin(Bx − C) + D, the slide the 5.5 deck never gave (ch05). The point
+       of the scene is that the phase shift is C/B and not C: the arrow along the
+       midline contracts when B alone is moved, while C has not been touched. The
+       three key points at height D sit on the midline, which is what stops them
+       being called x-intercepts. */
+    sineWaveShaper(ctx, p) {
+      const A = p.A === 0 ? 0.5 : p.A;
+      const B = Math.abs(p.B) < 0.25 ? 0.5 : Math.abs(p.B);
+      const c12 = Math.round(p.C);                    // C in twelfths of π
+      const C = c12 * Math.PI / 12;
+      const D = p.D;
+      const B2 = Math.round(B * 2);                   // B comes in halves
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const piFrac = (num, den) => {
+        if (num === 0) return "0";
+        const s = num < 0 ? "-" : "";
+        const g = gcd(Math.abs(num), den) || 1;
+        const N = Math.abs(num) / g, Dn = den / g;
+        const top = N === 1 ? "pi" : N + "pi";
+        return s + (Dn === 1 ? top : top + "/" + Dn);
+      };
+      const shift = C / B, period = 2 * Math.PI / B, quarter = period / 4;
+      const shiftTxt = piFrac(c12, 6 * B2);           // (c12/12)/(B2/2) = c12/(6·B2)
+      const periodTxt = piFrac(4, B2);                // 2π/B = (4/B2)·π
+      const quarterTxt = piFrac(1, B2);
+      const keyX = j => piFrac(c12 + 6 * j, 6 * B2);  // shift + j·quarter
+
+      const ymin = Math.min(-1.6, D - Math.abs(A) - 1.1), ymax = Math.max(1.6, D + Math.abs(A) + 1.1);
+      const xmin = -2 * Math.PI, xmax = 2 * Math.PI;
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight;
+      /* Its own mapping rather than view(): a wave is read against its axes, not
+         against a circle, and equal scaling would leave an amplitude of 5 taller
+         than the canvas or a period of 4π off the side of it. */
+      const pad = 30;
+      const v = {
+        w: W, h: H,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ymin) / (ymax - ymin)) * (H - 2 * pad),
+      };
+      const ink = css("--ink-faint"), acc = css("--accent");
+
+      // The range, as a band: every value the function takes, and none outside.
+      ctx.save();
+      ctx.fillStyle = css("--line"); ctx.globalAlpha = 0.3;
+      ctx.fillRect(v.X(xmin), v.Y(D + Math.abs(A)), v.X(xmax) - v.X(xmin), v.Y(D - Math.abs(A)) - v.Y(D + Math.abs(A)));
+      ctx.restore();
+
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      line(ctx, v.X(0), v.Y(ymin), v.X(0), v.Y(ymax), css("--line"), 1.2);
+      // Ticks in quarters of π, labelled in π: a wave axis in decimals is a wave
+      // axis nobody can read an exact answer off.
+      for (let t = -8; t <= 8; t++) {
+        const x = t * Math.PI / 4;
+        const big = t % 2 === 0;
+        line(ctx, v.X(x), v.Y(0) - (big ? 5 : 3), v.X(x), v.Y(0) + (big ? 5 : 3), css("--line"), 1);
+        if (t % 2 === 0 && t !== 0) label(ctx, piFrac(t, 4), v.X(x), v.Y(0) + 16, css("--line"), "center", 10);
+      }
+
+      plot(ctx, v, x => Math.sin(x), xmin, xmax, css("--green"), 1.2);      // the parent, fixed
+      line(ctx, v.X(xmin), v.Y(D), v.X(xmax), v.Y(D), css("--ink-faint"), 1.4, [5, 4]);
+      label(ctx, "y = " + (Math.round(D * 100) / 100), v.X(xmax) - 4, v.Y(D) - 10, ink, "right", 10);
+
+      const f = x => A * Math.sin(B * x - C) + D;
+      plot(ctx, v, f, xmin, xmax, ink, 1.4);
+      plot(ctx, v, f, Math.max(xmin, shift), Math.min(xmax, shift + period), acc, 2.6);
+
+      // The five key points of the period that starts at the phase shift.
+      const heights = [D, D + A, D, D - A, D];
+      for (let j = 0; j < 5; j++) {
+        const x = shift + j * quarter;
+        if (x < xmin || x > xmax) continue;
+        dot(ctx, v, x, heights[j], acc, true, 4.5);
+      }
+
+      // The shift itself, drawn along the midline where it happens.
+      if (Math.abs(shift) > 1e-9) {
+        arrow(ctx, v.X(0), v.Y(D), v.X(clamp(shift, xmin, xmax)), v.Y(D), css("--red"), 2);
+        label(ctx, shiftTxt + (shift > 0 ? " right" : " left"),
+          v.X(clamp(shift / 2, xmin + 1, xmax - 1)), v.Y(D) - 12, css("--red"), "center", 11);
+      }
+      /* Bx − C with a negative C is a plus sign on the screen, and that is
+         exactly the case a student misreads, so it must be printed the way the
+         paper prints it rather than as "- -pi/3". */
+      const inside = (Math.round(B * 100) / 100) + "x " + (c12 >= 0 ? "- " : "+ ") + piFrac(Math.abs(c12), 12);
+      label(ctx, "y = " + (Math.round(A * 100) / 100) + "·sin(" + inside + ")"
+        + (D === 0 ? "" : (D > 0 ? " + " : " - ") + Math.abs(Math.round(D * 100) / 100)),
+        12, 16, css("--ink"), "left", 12);
+
+      return [
+        ["amplitude", fmt(Math.abs(A), 2) + (A < 0 ? "  (reflected)" : "")],
+        ["period = 2pi/B", periodTxt],
+        ["phase shift = C/B", shiftTxt + (shift > 0 ? "  (right)" : shift < 0 ? "  (left)" : "")],
+        ["C, then B, then the quotient", "C = " + piFrac(c12, 12) + " ,  B = " + (Math.round(B * 100) / 100)
+          + " ,  C/B = " + shiftTxt],
+        ["one period runs from … to …", keyX(0) + "  to  " + keyX(4)],
+        ["quarter of the period", quarterTxt],
+        ["five key points", [0, 1, 2, 3, 4].map(j => "(" + keyX(j) + ", " + fmt(heights[j], 2) + ")").join("  ")],
+        ["midline and range", "y = " + fmt(D, 2) + " ,  ["
+          + fmt(D - Math.abs(A), 2) + ", " + fmt(D + Math.abs(A), 2) + "]"],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;

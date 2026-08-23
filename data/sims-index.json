@@ -24,9 +24,21 @@
     "free": false
   },
   {
+    "id": "build-the-sign-chart",
+    "module": "ch03",
+    "title": "The table that produces the answer",
+    "free": false
+  },
+  {
     "id": "walk-the-unit-circle",
     "module": "ch05",
     "title": "One angle, and everything the paper asks about it",
+    "free": false
+  },
+  {
+    "id": "shape-the-sine-wave",
+    "module": "ch05",
+    "title": "Amplitude, period, and the shift that is not the number in the bracket",
     "free": false
   },
   {
