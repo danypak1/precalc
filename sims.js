@@ -1681,6 +1681,398 @@ const SIMS = (() => {
       ];
     },
 
+    /* Three outcomes from one equation (§2.2, ch02). x² + y² + Ax + By + C = 0
+       completes the square to (x + A/2)² + (y + B/2)² = A²/4 + B²/4 − C, and the
+       sign of that right-hand side decides between a circle, a single point and
+       nothing at all. Dragging C makes the three cases one continuous motion
+       rather than three facts to remember. */
+    circleOrPoint(ctx, p) {
+      const A = Math.round(p.A), B = Math.round(p.B), C = Math.round(p.C);
+      const cx = -A / 2, cy = -B / 2;
+      const rhs = (A * A + B * B - 4 * C) / 4;        // exact: quarters of an integer
+      const r = rhs > 0 ? Math.sqrt(rhs) : 0;
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      /* √(N/4) with N an integer, printed the way a paper wants it. */
+      const radical = N => {
+        if (N === 0) return "0";
+        let inside = N, outside = 1;
+        for (let s = Math.floor(Math.sqrt(inside)); s >= 2; s--) {
+          if (inside % (s * s) === 0) { outside = s; inside /= s * s; break; }
+        }
+        const top = (outside === 1 ? "" : outside) + (inside === 1 ? "" : "√" + inside) || "1";
+        return top;
+      };
+      const rTxt = rhs > 0
+        ? (Number.isInteger(Math.sqrt(rhs)) ? String(Math.sqrt(rhs))
+          : (() => { const t = radical(A * A + B * B - 4 * C); return t.endsWith("√") ? t : t + "/2"; })())
+        : rhs === 0 ? "0" : "undefined — the right-hand side is negative";
+
+      const lim = 12;
+      const v = view(ctx, { xmin: -lim, xmax: lim, ymin: -lim, ymax: lim, pad: 22 });
+      grid(ctx, v, -lim, lim, -lim, lim);
+      const acc = css("--accent"), ink = css("--ink-faint"), red = css("--red"), green = css("--green");
+
+      if (rhs > 0) {
+        ctx.save();
+        ctx.strokeStyle = acc; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.arc(v.X(cx), v.Y(cy), Math.max(0, r * v.s), 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        line(ctx, v.X(cx), v.Y(cy), v.X(cx + r), v.Y(cy), green, 1.8);
+        label(ctx, "r = " + fmt(r, 2), v.X(cx + r / 2), v.Y(cy) - 10, green, "center", 11);
+        dot(ctx, v, cx, cy, acc, true, 5);
+      } else if (rhs === 0) {
+        dot(ctx, v, cx, cy, red, true, 7);
+        label(ctx, "one point", v.X(cx) + 12, v.Y(cy), red, "left", 12);
+      } else {
+        /* The ghost keeps the boundary continuous as C is dragged: the algebra
+           did not stop working, the answer simply stopped existing. */
+        ctx.save();
+        ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+        ctx.beginPath(); ctx.arc(v.X(cx), v.Y(cy), Math.max(2, Math.sqrt(-rhs) * v.s), 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        label(ctx, "no real points", v.X(cx), v.Y(cy), red, "center", 12);
+      }
+
+      // The working, with the numbers added to *both* sides named — adding them
+      // to the left alone is the expensive slip in this question.
+      const sgn = n => (n < 0 ? " - " + Math.abs(n) : " + " + n);
+      // A missing linear term is exactly the trap the deck sets, so it is shown
+      // as missing rather than as "+ 0x".
+      const term = (n, letter) => (n === 0 ? ""
+        : (n < 0 ? " - " : " + ") + (Math.abs(n) === 1 && letter ? "" : Math.abs(n)) + letter);
+      const EQN = "x²" + term(A, "x") + " + y²" + term(B, "y") + term(C, "") + " = 0";
+      label(ctx, EQN, 12, 16, ink, "left", 11);
+      label(ctx, "add " + fmt(A * A / 4, 2) + " and " + fmt(B * B / 4, 2) + " to both sides:", 12, 34, green, "left", 11);
+      label(ctx, "(x" + sgn(A / 2) + ")² + (y" + sgn(B / 2) + ")² = " + fmt(rhs, 2), 12, 52, css("--ink"), "left", 12);
+
+      const d = Math.hypot(cx, cy);
+      const dTxt = rhs > 0
+        ? "nearest " + fmt(Math.abs(d - r), 3) + ", farthest " + fmt(d + r, 3)
+        : rhs === 0 ? fmt(d, 3) + " — the one point" : "—";
+      return [
+        ["the equation", EQN],
+        ["centre", "(" + fmt(cx, 2) + ", " + fmt(cy, 2) + ")"],
+        ["right-hand side after completing the square", fmt(rhs, 2)],
+        ["radius", rTxt],
+        ["case", rhs > 0 ? "a circle" : rhs === 0 ? "a single point — the degenerate case"
+          : "the empty set — no real points satisfy it"],
+        ["distance from the origin", dTxt],
+      ];
+    },
+
+    /* Which letter owns the range (§4.2, ch04). f(x) = a·b^(x−h) + k has four
+       parameters and a range that answers to exactly two of them: k puts the
+       asymptote, a decides which side of it the curve lives on, and b and h
+       change the shape without touching either. */
+    exponentialAsymptoteBoard(ctx, p) {
+      const a = Math.abs(p.a) < 0.25 ? 0.5 : p.a;
+      let b = clamp(p.b, 0.25, 4);
+      if (Math.abs(b - 1) < 0.13) b = p.b >= 1 ? 1.25 : 0.75;   // b = 1 is not exponential
+      const h = p.h, k = p.k;
+      const f = x => a * Math.pow(b, x - h) + k;
+      const logb = u => Math.log(u) / Math.log(b);
+
+      const xmin = -6, xmax = 6;
+      /* The window has to contain the y-intercept, or the panel reports a point
+         it never drew — which is exactly the kind of quiet disagreement between
+         a readout and a picture that a trainer must not have. */
+      const yAt0 = a * Math.pow(b, -h) + k;
+      let ylo = Math.min(k - 6, -2, yAt0 - 1), yhi = Math.max(k + 8, 2, yAt0 + 1);
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 28;
+      const v = {
+        w: W, h: H,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ylo) / (yhi - ylo)) * (H - 2 * pad),
+      };
+      const acc = css("--accent"), green = css("--green"), ink = css("--ink-faint"), red = css("--red");
+
+      // The range: a band from the asymptote outward, open at the asymptote
+      // because that value is approached and never taken.
+      ctx.save();
+      ctx.fillStyle = green; ctx.globalAlpha = 0.15;
+      const top = a > 0 ? v.Y(yhi) : v.Y(k), bot = a > 0 ? v.Y(k) : v.Y(ylo);
+      ctx.fillRect(v.X(xmin), top, 24, bot - top);
+      ctx.restore();
+      label(ctx, "range", v.X(xmin) + 12, a > 0 ? bot + 12 : top - 10, green, "center", 10);
+
+      for (let g = Math.ceil(xmin); g <= xmax; g++) line(ctx, v.X(g), v.Y(ylo), v.X(g), v.Y(yhi), css("--line"), g === 0 ? 1.4 : 0.4);
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.4);
+      plot(ctx, v, x => { const y = Math.pow(b, x); return y < ylo || y > yhi ? null : y; }, xmin, xmax, ink, 1.2);
+      line(ctx, v.X(xmin), v.Y(k), v.X(xmax), v.Y(k), red, 1.6, [5, 4]);
+      label(ctx, "y = " + fmt(k, 2), v.X(xmax) - 4, v.Y(k) - 10, red, "right", 11);
+      // Open at the asymptote: a hollow tick where the band starts.
+      dot(ctx, v, xmin + 0.35, k, red, false, 4);
+      plot(ctx, v, x => { const y = f(x); return y < ylo - 1 || y > yhi + 1 ? null : y; }, xmin, xmax, acc, 2.6);
+
+      const yInt = f(0);
+      if (yInt >= ylo && yInt <= yhi) dot(ctx, v, 0, yInt, green, false, 5);
+      const ratio = -k / a;
+      const xInt = ratio > 0 ? h + logb(ratio) : null;
+      if (xInt !== null && xInt >= xmin && xInt <= xmax) dot(ctx, v, xInt, 0, green, false, 5);
+
+      const sgn = n => (n < 0 ? " - " + fmt(-n, 2) : " + " + fmt(n, 2));
+      label(ctx, "y = " + (a === 1 ? "" : a === -1 ? "-" : fmt(a, 2) + "·") + fmt(b, 2)
+        + "^(x" + (h < 0 ? " + " + fmt(-h, 2) : " - " + fmt(h, 2)) + ")" + (k === 0 ? "" : sgn(k)),
+        12, 16, css("--ink"), "left", 12);
+
+      return [
+        ["horizontal asymptote", "y = " + fmt(k, 2)],
+        ["domain", "(-∞, ∞) — and no slider here can change it"],
+        ["range", a > 0 ? "(" + fmt(k, 2) + ", ∞)" : "(-∞, " + fmt(k, 2) + ")"],
+        ["y-intercept", "(0, " + fmt(yInt, 3) + ")"],
+        ["x-intercept", xInt === null
+          ? "none — the curve stays on one side of its asymptote"
+          : "x = " + fmt(h, 2) + " + log_" + fmt(b, 2) + "(" + fmt(ratio, 3) + ")  =  " + fmt(xInt, 3)],
+        ["growth or decay", b > 1 ? "b > 1, growing" : "0 < b < 1, decaying"],
+        ["which letters moved the range", "k set the asymptote, a chose the side — b and h did neither"],
+      ];
+    },
+
+    /* Every asymptote is a vanishing denominator (§5.6, ch05). The reciprocal is
+       drawn together with the curve it is the reciprocal of, and each asymptote
+       is placed where that guide crosses zero — computed from the crossing, not
+       from a remembered formula, so the picture and the rule cannot disagree. */
+    reciprocalGraphPair(ctx, p) {
+      const PI = Math.PI;
+      const which = clamp(Math.round(p.which), 0, 3);   // 0 sec, 1 csc, 2 tan, 3 cot
+      const A = Math.abs(p.A) < 0.25 ? 0.5 : p.A;
+      const B = Math.abs(p.B) < 0.25 ? 0.5 : Math.abs(p.B);
+      const NAME = ["sec", "csc", "tan", "cot"][which];
+      const reciprocal = which < 2;
+
+      const f = x => {
+        const u = B * x;
+        return which === 0 ? A / Math.cos(u) : which === 1 ? A / Math.sin(u)
+          : which === 2 ? A * Math.tan(u) : A / Math.tan(u);
+      };
+      // The guide whose zeros are this function's asymptotes.
+      const guide = x => (which === 0 || which === 2 ? A * Math.cos(B * x) : A * Math.sin(B * x));
+      const otherGuide = x => (which === 0 || which === 2 ? A * Math.sin(B * x) : A * Math.cos(B * x));
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const piFrac = (num, den) => {
+        if (num === 0) return "0";
+        const g = gcd(Math.abs(num), den) || 1, N = Math.abs(num) / g, D = den / g;
+        return (num < 0 ? "-" : "") + (N === 1 ? "pi" : N + "pi") + (D === 1 ? "" : "/" + D);
+      };
+
+      const xmin = -2 * PI, xmax = 2 * PI, ymax = 6, ymin = -6;
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 26;
+      const v = {
+        w: W, h: H,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (W - 2 * pad),
+        Y: y => H - pad - ((y - ymin) / (ymax - ymin)) * (H - 2 * pad),
+      };
+      const acc = css("--accent"), green = css("--green"), ink = css("--ink-faint"), red = css("--red");
+
+      // Secant and cosecant never enter the band between -|A| and |A|; watching
+      // it widen with A is the fastest route to the range.
+      if (reciprocal) {
+        ctx.save();
+        ctx.fillStyle = red; ctx.globalAlpha = 0.1;
+        ctx.fillRect(v.X(xmin), v.Y(Math.abs(A)), v.X(xmax) - v.X(xmin), v.Y(-Math.abs(A)) - v.Y(Math.abs(A)));
+        ctx.restore();
+        label(ctx, "no point of the curve is ever in here", v.X(0), v.Y(0), red, "center", 10);
+      }
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      for (let t = -4; t <= 4; t++) {
+        const x = t * PI / 2;
+        line(ctx, v.X(x), v.Y(0) - 4, v.X(x), v.Y(0) + 4, css("--line"), 1);
+        if (t % 2 === 0 && t) label(ctx, piFrac(t, 2), v.X(x), v.Y(0) + 16, css("--line"), "center", 10);
+      }
+
+      /* Asymptotes from the guide's actual zeros: scan for sign changes rather
+         than printing a formula beside a curve drawn from another one. */
+      const zeros = [];
+      const N = 4000;
+      for (let i = 1; i <= N; i++) {
+        const x0 = xmin + (xmax - xmin) * (i - 1) / N, x1 = xmin + (xmax - xmin) * i / N;
+        const g0 = guide(x0), g1 = guide(x1);
+        if (g0 === 0) zeros.push(x0);
+        else if (g0 * g1 < 0) zeros.push((x0 + x1) / 2);
+      }
+      for (const z of zeros) line(ctx, v.X(z), v.Y(ymin), v.X(z), v.Y(ymax), red, 1, [4, 4]);
+
+      ctx.save(); ctx.setLineDash([4, 4]);
+      plot(ctx, v, guide, xmin, xmax, ink, 1.4);
+      if (!reciprocal) plot(ctx, v, otherGuide, xmin, xmax, css("--line"), 1.2);
+      ctx.restore();
+      // Drawn in pieces between asymptotes: one sweep would join +∞ to −∞ with a
+      // vertical line and teach the asymptote as part of the graph.
+      const cuts = [xmin, ...zeros, xmax];
+      for (let i = 0; i < cuts.length - 1; i++) {
+        plot(ctx, v, x => { const y = f(x); return !isFinite(y) || Math.abs(y) > ymax ? null : y; },
+          cuts[i] + 1e-3, cuts[i + 1] - 1e-3, acc, 2.4);
+      }
+      if (reciprocal) {
+        // Where the guide reaches ±|A| the reciprocal touches it: the contact
+        // points that make the band's edge reachable and its inside not.
+        for (let i = 0; i <= 8; i++) {
+          const x = xmin + (xmax - xmin) * i / 8;
+          if (Math.abs(Math.abs(guide(x)) - Math.abs(A)) < 1e-6) dot(ctx, v, x, guide(x), green, true, 4);
+        }
+      }
+
+      const periodTxt = reciprocal ? piFrac(4, Math.round(B * 2)) : piFrac(2, Math.round(B * 2));
+      const first = zeros.length ? zeros.find(z => z > -1e-9) ?? zeros[0] : null;
+      /* The zeros come from scanning the guide, so they carry the grid's error;
+         a value a hundredth away from a multiple of pi/12 is that multiple, and
+         printing 1.572 where the answer is pi/2 helps nobody. */
+      const nearPi = a => {
+        if (a === null) return "—";
+        const tw = a / (PI / 12);
+        return Math.abs(tw - Math.round(tw)) < 0.02 ? piFrac(Math.round(tw), 12) : fmt(a, 3);
+      };
+      const gapTxt = zeros.length > 1 ? nearPi(zeros[1] - zeros[0]) : "—";
+      const formula = "y = " + (A === 1 ? "" : A === -1 ? "-" : fmt(A, 2) + " ") + NAME
+        + "(" + (B === 1 ? "" : fmt(B, 2)) + "x)";
+      label(ctx, formula, 12, 16, css("--ink"), "left", 12);
+      label(ctx, "guide: " + (which === 0 || which === 2 ? "cos" : "sin") + " — its zeros are the asymptotes",
+        12, 34, ink, "left", 10);
+
+      return [
+        ["the function", formula],
+        ["guide curve", (which === 0 || which === 2 ? fmt(A, 2) + "·cos(" + fmt(B, 2) + "x)" : fmt(A, 2) + "·sin(" + fmt(B, 2) + "x)")
+          + " — the denominator, and its zeros are the asymptotes"],
+        ["period", periodTxt + (reciprocal ? "  (2pi/B — the reciprocal keeps its guide's period)"
+          : "  (pi/B — tan and cot repeat twice as often as sin and cos)")],
+        ["asymptotes on screen", String(zeros.length)],
+        ["spacing between them", gapTxt],
+        ["first asymptote at or after 0", first === null ? "none" : "x = " + nearPi(first)],
+        ["range", reciprocal
+          ? "(-∞, -" + fmt(Math.abs(A), 2) + "] ∪ [" + fmt(Math.abs(A), 2) + ", ∞) — the band between is forbidden"
+          : "(-∞, ∞) — a tangent or cotangent takes every value on every branch"],
+        ["amplitude", reciprocal ? "none — a secant or cosecant has no maximum to halve"
+          : "none — a tangent or cotangent has no maximum either"],
+      ];
+    },
+
+    /* A sin x + B cos x = k sin(x + α), made continuous (§6.2, ch06). The sum of
+       two waves of the same period is one wave; the dashed reduction lies exactly
+       on the bold sum at every setting, and that coincidence is the theorem. The
+       inset says where α comes from: the *pair* of signs, not either alone. */
+    oneWaveFromTwo(ctx, p) {
+      const PI = Math.PI;
+      const A = p.A, B = p.B;
+      const k = Math.hypot(A, B);
+      const alpha = k < 1e-9 ? 0 : Math.atan2(B, A);       // cos α = A/k, sin α = B/k
+
+      const gcd = (m, n) => (n ? gcd(n, m % n) : Math.abs(m));
+      const piFrac = tw => {
+        if (tw === 0) return "0";
+        const g = gcd(Math.abs(tw), 12) || 1, N = Math.abs(tw) / g, D = 12 / g;
+        return (tw < 0 ? "-" : "") + (N === 1 ? "pi" : N + "pi") + (D === 1 ? "" : "/" + D);
+      };
+      const asPi = a => {
+        const tw = a / (PI / 12);
+        return Math.abs(tw - Math.round(tw)) < 1e-6 ? piFrac(Math.round(tw)) : null;
+      };
+      const exactK = Number.isInteger(k) ? String(k) : (() => {
+        const n = A * A + B * B;                     // k = √n, and A, B come in halves
+        if (Number.isInteger(n)) {
+          let inside = n, outside = 1;
+          for (let s = Math.floor(Math.sqrt(inside)); s >= 2; s--) {
+            if (inside % (s * s) === 0) { outside = s; inside /= s * s; break; }
+          }
+          if (inside === 1) return String(outside);
+          return (outside === 1 ? "" : outside) + "√" + inside;
+        }
+        return fmt(k, 3);
+      })();
+
+      const sum = x => A * Math.sin(x) + B * Math.cos(x);
+      const red = x => k * Math.sin(x + alpha);
+
+      const xmin = 0, xmax = 2 * PI;
+      const lim = Math.max(2, k * 1.25);
+      const W = ctx.canvas.clientWidth, H = ctx.canvas.clientHeight, pad = 26;
+      const plotW = W * 0.7;
+      const v = {
+        w: plotW, h: H,
+        X: x => pad + ((x - xmin) / (xmax - xmin)) * (plotW - 2 * pad),
+        Y: y => H - pad - ((y + lim) / (2 * lim)) * (H - 2 * pad),
+      };
+      const acc = css("--accent"), green = css("--green"), ink = css("--ink-faint"), redC = css("--red");
+      line(ctx, v.X(xmin), v.Y(0), v.X(xmax), v.Y(0), css("--line"), 1.2);
+      for (let t = 0; t <= 4; t++) {
+        const x = t * PI / 2;
+        line(ctx, v.X(x), v.Y(0) - 4, v.X(x), v.Y(0) + 4, css("--line"), 1);
+        // t counts half-turns of pi and piFrac counts twelfths, so the tick at
+        // t is 6t twelfths. Passing 3t labelled x = pi as pi/2.
+        if (t % 2 === 0 && t) label(ctx, piFrac(t * 6), v.X(x), v.Y(0) + 16, css("--line"), "center", 10);
+      }
+      line(ctx, v.X(xmin), v.Y(k), v.X(xmax), v.Y(k), green, 1, [4, 4]);
+      line(ctx, v.X(xmin), v.Y(-k), v.X(xmax), v.Y(-k), green, 1, [4, 4]);
+      label(ctx, "y = " + fmt(k, 2), v.X(xmax) - 4, v.Y(k) - 9, green, "right", 10);
+
+      plot(ctx, v, x => A * Math.sin(x), xmin, xmax, ink, 1.2);
+      plot(ctx, v, x => B * Math.cos(x), xmin, xmax, ink, 1.2);
+      plot(ctx, v, sum, xmin, xmax, acc, 3.2);
+      ctx.save(); ctx.setLineDash([6, 5]);
+      plot(ctx, v, red, xmin, xmax, redC, 1.8);
+      ctx.restore();
+
+      // The shift, drawn where it happens: the sum peaks a quarter-turn after
+      // x = -α, so the arrow runs from 0 back to -α.
+      if (k > 1e-9 && Math.abs(alpha) > 1e-9) {
+        arrow(ctx, v.X(0), v.Y(-lim * 0.82), v.X(clamp(-alpha, xmin, xmax)), v.Y(-lim * 0.82), redC, 1.8);
+        label(ctx, "shift", v.X(clamp(-alpha / 2, 0.2, xmax - 0.2)), v.Y(-lim * 0.82) - 10, redC, "center", 10);
+      }
+
+      /* The inset: the point (A/k, B/k) on the unit circle, which is where the
+         quadrant of α is decided — by both signs at once. */
+      const cxp = plotW + (W - plotW) / 2, cyp = H / 2, rad = Math.min((W - plotW) / 2 - 12, H / 2 - 26);
+      if (rad > 18) {
+        ctx.save();
+        ctx.strokeStyle = ink; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(cxp, cyp, rad, 0, 2 * PI); ctx.stroke();
+        ctx.restore();
+        line(ctx, cxp - rad, cyp, cxp + rad, cyp, css("--line"), 1);
+        line(ctx, cxp, cyp - rad, cxp, cyp + rad, css("--line"), 1);
+        for (const [nm, qx, qy] of [["I", 0.6, -0.6], ["II", -0.6, -0.6], ["III", -0.6, 0.6], ["IV", 0.6, 0.6]]) {
+          label(ctx, nm, cxp + qx * rad, cyp + qy * rad, css("--line"), "center", 9);
+        }
+        if (k > 1e-9) {
+          const px = cxp + (A / k) * rad, py = cyp - (B / k) * rad;
+          line(ctx, cxp, cyp, px, py, redC, 2);
+          ctx.save(); ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * PI); ctx.fillStyle = redC; ctx.fill(); ctx.restore();
+          label(ctx, "α", cxp + 0.28 * rad * Math.cos(alpha / 2), cyp - 0.28 * rad * Math.sin(alpha / 2), redC, "center", 12);
+        }
+        label(ctx, "(A/k, B/k)", cxp, cyp + rad + 14, ink, "center", 10);
+      }
+
+      const sgn = n => (n < 0 ? " - " + fmt(-n, 2) : " + " + fmt(n, 2));
+      label(ctx, "y = " + fmt(A, 2) + "sin x" + sgn(B) + "cos x", 12, 16, acc, "left", 12);
+      label(ctx, "y = " + fmt(k, 2) + "sin(x " + (alpha < 0 ? "- " + fmt(-alpha, 3) : "+ " + fmt(alpha, 3)) + ")",
+        12, 34, redC, "left", 12);
+
+      if (k < 1e-9) {
+        return [["the sum", "0 — both coefficients are zero"], ["k", "0"],
+          ["alpha", "no wave: there is no angle to find"], ["quadrant of alpha", "—"],
+          ["the two curves agree", "yes, trivially — both are the zero function"]];
+      }
+      const quad = (A > 0 && B > 0) ? "I" : (A < 0 && B > 0) ? "II" : (A < 0 && B < 0) ? "III"
+        : (A > 0 && B < 0) ? "IV" : "on an axis";
+      // Sampled agreement: the identity is the whole point, so it is measured.
+      let worst = 0;
+      for (let i = 0; i <= 400; i++) {
+        const x = 2 * PI * i / 400;
+        worst = Math.max(worst, Math.abs(sum(x) - red(x)));
+      }
+      const alphaPi = asPi(alpha);
+      return [
+        ["the sum", fmt(A, 2) + "sin x" + sgn(B) + "cos x"],
+        ["k = √(A² + B²)", exactK + (Math.abs(parseFloat(exactK) - k) < 5e-4 ? "" : "   (" + fmt(k, 3) + ")")],
+        ["cos alpha = A/k", fmt(A / k, 4)],
+        ["sin alpha = B/k", fmt(B / k, 4)],
+        ["quadrant of alpha", quad + " — read from both signs together, never from one"],
+        ["alpha", fmt(alpha, 4) + (alphaPi ? "   (" + alphaPi + ")" : " radians")],
+        ["the reduction", "y = " + exactK + "sin(x " + (alpha < 0 ? "- " + fmt(-alpha, 4) : "+ " + fmt(alpha, 4)) + ")"],
+        ["the two curves agree", "largest gap " + fmt(worst, 6) + " — they are the same wave"],
+      ];
+    },
+
     /* Vector components and the resultant — the ch01 trainer. */
     vectors(ctx, p) {
       const A = p.A, tA = p.thetaA * Math.PI / 180, B = p.B, tB = p.thetaB * Math.PI / 180;

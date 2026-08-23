@@ -30,6 +30,12 @@
     "free": false
   },
   {
+    "id": "circle-point-or-nothing",
+    "module": "ch02",
+    "title": "Not every such equation is a circle",
+    "free": false
+  },
+  {
     "id": "one-parabola-eight-answers",
     "module": "ch03",
     "title": "One parabola, and the eight questions asked about it",
@@ -66,6 +72,12 @@
     "free": false
   },
   {
+    "id": "which-letter-owns-the-range",
+    "module": "ch04",
+    "title": "Four letters, and only two of them touch the range",
+    "free": false
+  },
+  {
     "id": "walk-the-unit-circle",
     "module": "ch05",
     "title": "One angle, and everything the paper asks about it",
@@ -84,6 +96,12 @@
     "free": false
   },
   {
+    "id": "asymptote-is-a-zero-denominator",
+    "module": "ch05",
+    "title": "Where the guide crosses zero, the reciprocal breaks",
+    "free": false
+  },
+  {
     "id": "identity-or-impostor",
     "module": "ch06",
     "title": "Checking at one angle proves nothing",
@@ -93,6 +111,12 @@
     "id": "both-answers",
     "module": "ch06",
     "title": "The general solution and the interval, side by side",
+    "free": false
+  },
+  {
+    "id": "two-waves-into-one",
+    "module": "ch06",
+    "title": "A sin x + B cos x is one wave, not two",
     "free": false
   }
 ]
