@@ -71,7 +71,7 @@ const HAS_SIMS = true;
 const HAS_EXAM = true;
 const SURFACES = ["notes", "questions", "answers", "summary", "problems"];
 const PRICE = "$25";
-const CONTACT = "https://t.me/danypak";
+const CONTACT = "https://t.me/danypak?text=Hi%21%20I%27d%20like%20a%20key%20for%20Precalculus%20%28%2425%29.";
 const DEVICES_PHRASE = "two devices";
 const DEVICES_EXAMPLE = "your laptop and your phone";
 const ONE_TOO_MANY = "a third";
@@ -347,6 +347,15 @@ function routeTo() {
   renderModule(m, tab || "learn");
 }
 window.addEventListener("hashchange", route);
+
+/* Any link to the chat, wherever it is drawn — the lock screen, a trainer, the
+   help line under a failed unlock. Delegated from the document rather than bound
+   at each call site, because there are six of them and a seventh would silently
+   go uncounted. Capture phase: the click is about to leave for another app. */
+document.addEventListener("click", e => {
+  const a = e.target.closest && e.target.closest(`a[href^="${CONTACT}"]`);
+  if (a) Api.beacon("buy_click", "locked_module");
+}, true);
 
 /* The skip link is a button, not an <a href="#main">: this app routes on the
    hash, so an anchor jump would set location.hash to "#main" and the router
@@ -692,6 +701,11 @@ function currentRender() {
 
 async function renderModule(m, tab) {
   const alive = beginRender();
+  /* Somebody is reading a module. Which one matters: opening the free chapter is
+     interest, opening a locked one is interest that has already met the price.
+     FREE_MODULES is what api.js gates on, so this asks the same question the
+     paywall does rather than a second copy of it. */
+  Api.beacon("visit", Api.isFree(m.id) ? "free_module" : "locked_module");
   /* A tab this course does not ship used to fall through the dispatch below into
      Practice, which on a problems-first course means a 404 for a question paper
      that does not exist — and the tabbar highlighted nothing, so the student

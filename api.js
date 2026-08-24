@@ -202,6 +202,35 @@ const Api = {
   },
 
   /* The whole of signing in: one key, one request, one token. */
+  /* Two counts, and nothing else: a free module was opened, and a "Get a key"
+     link was followed. They go to this course's own Worker — the published site
+     has no third-party anything in it and is not getting any — and they carry no
+     identity: no cookie, no id, no session. Without them the only measurable
+     fact about the sale is the sale, and on a course with no buyers yet that is
+     silence, which reads the same whether nobody came or a hundred people came
+     and left.
+
+     Fires once per browser session per kind, and never in local mode. Never
+     awaited and never allowed to throw: a counter that can delay or break a
+     page has cost more than it measures. `keepalive` is what makes the buy click
+     survive the navigation to the chat app that immediately follows it. */
+  beacon(kind, surface) {
+    if (this.mode !== "remote") return;
+    const once = `beacon:${COURSE_ID}:${kind}`;
+    try {
+      if (sessionStorage.getItem(once)) return;
+      sessionStorage.setItem(once, "1");
+    } catch { /* private mode: count it, just do not dedupe it */ }
+    try {
+      fetch(`${this.base}/beacon`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course: COURSE_ID, kind, surface }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch { /* nothing here is worth a broken page */ }
+  },
+
   async claim(key) {
     if (this.mode === "local") throw new Error("Sign-in is not used in local mode");
     return this._grant(await this._post("/auth/claim", {

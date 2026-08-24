@@ -4,8 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Precalculus</title>
+  <!-- The link-preview card. Generated: see apply-config.py. -->
+  <!--gen:og--><meta property="og:type" content="website">
+    <meta property="og:site_name" content="Precalculus">
+    <meta property="og:title" content="Precalculus">
+    <meta property="og:description" content="Seven modules of precalculus notes, 154 exam-style questions — 84 multiple choice with every wrong option diagnosed, 70 written with mark schemes — and 82 multi-part problems worked line by line.">
+    <meta property="og:url" content="https://danypak1.github.io/precalc/">
+    <meta property="og:image" content="https://danypak1.github.io/precalc/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Precalculus — College algebra and trigonometry, from R.3 to 6.5">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Precalculus">
+    <meta name="twitter:description" content="Seven modules of precalculus notes, 154 exam-style questions — 84 multiple choice with every wrong option diagnosed, 70 written with mark schemes — and 82 multi-part problems worked line by line.">
+    <meta name="twitter:image" content="https://danypak1.github.io/precalc/og.png"><!--/gen-->
   <meta name="description" content="<!--gen:metaDescription-->Seven modules of precalculus notes, 154 exam-style questions — 84 multiple choice with every wrong option diagnosed, 70 written with mark schemes — and 82 multi-part problems worked line by line.<!--/gen-->">
-  <link rel="stylesheet" href="styles.css?v=58">
+  <link rel="stylesheet" href="styles.css?v=59">
   <!--gen:themeCss--><!--/gen-->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'><!--gen:icon-->ƒ<!--/gen--></text></svg>">
   <!-- Honour the theme the student picked inside the app. In <head> and inline so
@@ -272,7 +286,7 @@
           <li>The mock exam and the pass over everything you got wrong</li>
           <li>Two devices at a time — your laptop and your phone</li>
         </ul>
-        <a class="btn" href="https://t.me/danypak" target="_blank" rel="noopener">Get a key — $25</a>
+        <a class="btn" href="https://t.me/danypak?text=Hi%21%20I%27d%20like%20a%20key%20for%20Precalculus%20%28%2425%29." target="_blank" rel="noopener">Get a key — $25</a>
       </div>
     </div>
     <!--/gen-->
@@ -294,5 +308,31 @@
       <!--gen:attribution-->Independent study guide for a first course in College Algebra and Trigonometry. Every explanation, worked example, practice question and problem is written for this course. Section numbering follows Miller &amp; Gerken, College Algebra and Trigonometry, the textbook the lecture course is taught from; where a question from a past model paper is discussed, it is named where it appears, and no worked example from that textbook is reproduced. Not affiliated with or endorsed by any university, instructor or publisher.<!--/gen-->
     </p>
   </div>
+  <!--gen:beacon--><script>
+    /* Two counts, no identity: the page was opened, and a link to the
+       chat was followed. Once per browser session, never awaited, and
+       wrapped so that a counter can never break the page it measures. */
+    (function () {
+      var W = "https://precalc-api.danypak.workers.dev", C = "precalc";
+      function ping(kind) {
+        try {
+          var k = "beacon:" + C + ":" + kind;
+          if (sessionStorage.getItem(k)) return;
+          sessionStorage.setItem(k, "1");
+        } catch (e) { /* private mode: count it, do not dedupe it */ }
+        try {
+          fetch(W + "/beacon", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ course: C, kind: kind, surface: "landing" }),
+            keepalive: true }).catch(function () {});
+        } catch (e) {}
+      }
+      ping("visit");
+      document.addEventListener("click", function (e) {
+        var a = e.target.closest && e.target.closest('a[href*="t.me/"]');
+        if (a) ping("buy_click");
+      }, true);
+    }());
+  </script><!--/gen-->
 </body>
 </html>
