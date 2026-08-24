@@ -276,6 +276,10 @@ const stripMd = s => s.replace(/[*`]/g, "").replace(/&/g, "&amp;").replace(/"/g,
    announcing that a new screen existed. route() awaits the render (several are
    async) and then puts focus on the screen itself. */
 let routedOnce = false;
+/* Set by routeTo from the hash, consumed once by whichever render puts the
+   heading in the DOM. Not a URL read at scroll time: the render is async, and
+   by the time it finishes the hash may already name a different screen. */
+let pendingAnchor = null;
 async function route() {
   /* Read before rendering: the deep-link handler consumes this key while the
      new screen is being built, so asking afterwards always says "no anchor". */
@@ -309,7 +313,15 @@ function routeTo() {
   beginRender();
   QuizKeys.clear();
   const hash = location.hash.replace(/^#\/?/, "");
-  const [mod, tab] = hash.split("/");
+  /* A second "#" in the hash names a heading inside the tab: the Problems tab
+     writes "#/ch01/learn#sec-1-1" for every "Read §1.1" link it prints. Without
+     this split the tab is the whole string "learn#sec-1-1", which matches no
+     tab, and the student who asked to read §1.1 is shown the quiz instead —
+     41 such links in this course, on every problem set, and the same URL is the
+     only sensible thing to paste into a group chat when answering a question. */
+  const [mod, tabAndAnchor] = hash.split("/");
+  const [tab, anchor] = (tabAndAnchor || "").split("#");
+  pendingAnchor = anchor || null;
   renderNav(mod);
   // #/unlock/<PREFIX>-XXXXX-… — the link sent with the key, so the first sign-in
   // is a click rather than twenty characters typed on a phone. Decoded because
@@ -1200,6 +1212,16 @@ function buildToc(m, notes, tocEl) {
   const p = Store.module(m.id);
   const fill = $("#read-fill");
   let activeId = null;
+
+  /* A "#/chNN/learn#sec-N-M" link asked for one heading. Consume the request
+     here, where the headings certainly exist — the render is async, so reading
+     the URL at scroll time would race a student who has already navigated on.
+     Taken rather than copied, so a later tab switch does not jump again. */
+  if (pendingAnchor) {
+    const want = document.getElementById(pendingAnchor);
+    pendingAnchor = null;
+    if (want) want.scrollIntoView({ block: "start" });
+  }
 
   PageScroll.set(() => {
     if (!notes.isConnected) return PageScroll.clear();
