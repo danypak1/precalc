@@ -741,8 +741,13 @@ async function renderModule(m, tab) {
   /* A module that owns a trainer says so beside its own tabs. The catalogue is a
      detour for the student who needs it: the one who wants the incline trainer is
      the one currently reading the incline section. Fire-and-forget — a trainer is
-     an extra, and no failure here may take the notes down with it. */
-  simsIndex().then(index => {
+     an extra, and no failure here may take the notes down with it.
+
+     Guarded like the other three readers of HAS_TRAINERS (the router, the nav and
+     the tool card), which this one was not. A course with no trainers ships no
+     data/sims-index.json, so the fetch was a 404 on every module a student opened
+     — swallowed by the catch below, invisible on the page, and permanent. */
+  if (HAS_TRAINERS) simsIndex().then(index => {
     if (!alive()) return;
     const rows = (index || []).filter(r => r.module === m.id);
     const slot = $("#module-trainers");
